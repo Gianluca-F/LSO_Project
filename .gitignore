@@ -1,0 +1,36 @@
+# Compilati C/C++
+*.o
+*.a
+*.so
+*.out
+*.exe
+
+# File di build temporanei
+*.log
+*.swp
+*.tmp
+*.bak
+
+# Directory comuni di build
+/build/
+/bin/
+/obj/
+/dist/
+
+# Java (se il client lo usate in Java)
+*.class
+*.jar
+*.war
+*.ear
+
+# Librerie e dipendenze (se usate gradle/maven per il client)
+.gradle/
+/target/
+/out/
+/.idea/
+/.vscode/
+/*.iml
+
+# File di sistema
+.DS_Store
+Thumbs.db
