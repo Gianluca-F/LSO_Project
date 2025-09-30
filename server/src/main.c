@@ -69,7 +69,7 @@ int main() {
     int addrlen = sizeof(address);
 
     // Crea socket
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         LOG_ERROR("Creazione socket fallita: %s", strerror(errno));
         perror("Socket fallita");
         exit(EXIT_FAILURE);
