@@ -4,10 +4,10 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pthread -g -Iinclude -I../shared/include
 
 # Eseguibile finale
-TARGET = bin/server
+TARGET = bin/client
 
 # Sorgenti
-SRC = src/main.c src/server.c src/utils.c
+SRC = src/main.c src/client.c src/utils.c
 SHARED_SRC = ../shared/src/protocol.c
 
 # File oggetto nella cartella obj/
@@ -15,7 +15,7 @@ OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
 SHARED_OBJ = $(patsubst ../shared/src/%.c,obj/%.o,$(SHARED_SRC))
 
 # Crea cartelle obj e bin se non esistono
-DIRS = obj bin logs
+DIRS = obj bin
 
 all: $(DIRS) $(TARGET)
 

@@ -12,18 +12,25 @@
 *.bak
 
 # Directory comuni di build
-/build/
-/bin/
-/obj/
-/dist/
+build/
+bin/
+obj/
+dist/
 
-# Java (se il client lo usate in Java)
+# Log files
+logs/
+*.log
+
+# File di configurazione locali
+*.conf
+
+# Java
 *.class
 *.jar
 *.war
 *.ear
 
-# Librerie e dipendenze (se usate gradle/maven per il client)
+# Librerie e dipendenze
 .gradle/
 /target/
 /out/

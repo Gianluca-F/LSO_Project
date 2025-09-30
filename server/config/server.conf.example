@@ -1,0 +1,4 @@
+port=90
+max_clients=7
+log_level=INFO
+log_file=logs/server.log

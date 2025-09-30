@@ -1,3 +1,4 @@
 #include "server.h"
 
-// File vuoto per ora, funzioni utility verranno aggiunte dopo
+// TODO: implementare funzioni specifiche del server qui
+// Per ora, tutto il codice specifico del server è in main.c
