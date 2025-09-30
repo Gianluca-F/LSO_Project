@@ -45,3 +45,12 @@ run: $(TARGET)
 # Debug
 debug: CFLAGS += -DDEBUG
 debug: $(TARGET)
+
+# Comandi utili per lo sviluppo
+help:
+	@echo "Comandi disponibili:"
+	@echo "  make          - Compila il progetto"
+	@echo "  make clean    - Pulisce i file compilati"
+	@echo "  make run      - Esegue il server"
+	@echo "  make debug    - Compila con opzioni di debug"
+	@echo "  make help     - Mostra questo messaggio di aiuto"
