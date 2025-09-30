@@ -6,7 +6,50 @@
 #include <errno.h>
 #include <arpa/inet.h>
 
+#define MAX_PORT_ATTEMPTS 10
 #define BUFFER_SIZE 1024
+
+// Tenta il bind su porte successive fino a trovarne una libera
+// Ritorna la porta utilizzata o -1 se nessuna porta è disponibile
+int bind_to_available_port(int server_fd, struct sockaddr_in *address, int start_port) {
+    int current_port;
+
+    for (int attempt = 0; attempt < MAX_PORT_ATTEMPTS; attempt++) {
+        if (attempt < 5) {
+            current_port = start_port + attempt;
+        } else {
+            current_port = start_port + 5 + (attempt - 5) * 10;
+        }
+        
+        // Evita porte fuori range
+        if (current_port > 65535) {
+            LOG_WARN("Porta %d fuori range, interrompo ricerca", current_port);
+            break;
+        }
+        
+        // Configura la porta
+        address->sin_port = htons(current_port);
+        
+        // Tenta il bind direttamente
+        if (bind(server_fd, (struct sockaddr *)address, sizeof(*address)) == 0) {
+            if (current_port != start_port) {
+                printf("ATTENZIONE: Porta %d occupata, utilizzo porta alternativa %d\n", 
+                       start_port, current_port);
+                LOG_WARN("Porta %d occupata, utilizzo porta alternativa %d", 
+                         start_port, current_port);
+            }
+            LOG_DEBUG("Bind completato con successo sulla porta %d", current_port);
+            return current_port;
+        }
+        
+        LOG_DEBUG("Porta %d non disponibile (tentativo %d/%d)", 
+            current_port, attempt + 1, MAX_PORT_ATTEMPTS);
+    }
+    
+    LOG_ERROR("Impossibile trovare una porta libera a partire da %d dopo %d tentativi", 
+              start_port, MAX_PORT_ATTEMPTS);
+    return -1;
+}
 
 // Funzione eseguita da ogni thread (gestisce un client)
 void *handle_client(void *arg) {
@@ -52,10 +95,11 @@ void *handle_client(void *arg) {
     }
 }
 
-// Inizializza e configura il socket del server
-int init_server(int port) {
+// Inizializza e configura il socket del server con fallback automatico delle porte
+int init_server(int requested_port) {
     int server_fd;
     struct sockaddr_in address;
+    int current_port;
 
     // Crea socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -73,18 +117,17 @@ int init_server(int port) {
         return -1;
     }
 
+    // Configura l'indirizzo di base
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
-
-    // Bind
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        LOG_ERROR("Bind fallito sulla porta %d: %s", port, strerror(errno));
-        perror("Bind fallito");
+    
+    // Tenta il bind su una porta disponibile
+    if ((current_port = bind_to_available_port(server_fd, &address, requested_port)) == -1) {
+        LOG_ERROR("Impossibile trovare una porta libera a partire da %d", requested_port);
+        printf("ERRORE: Impossibile trovare una porta libera a partire da %d\n", requested_port);
         close(server_fd);
         return -1;
     }
-    LOG_DEBUG("Bind completato sulla porta %d", port);
 
     // Listen - usa max_clients dalla configurazione
     if (listen(server_fd, global_config.max_clients) < 0) {
@@ -94,8 +137,11 @@ int init_server(int port) {
         return -1;
     }
 
-    printf("Server in ascolto sulla porta %d...\n", port);
-    LOG_INFO("Server in ascolto sulla porta %d, max client: %d", port, global_config.max_clients);
+    printf("Server in ascolto sulla porta %d...\n", current_port);
+    LOG_INFO("Server in ascolto sulla porta %d, max client: %d", current_port, global_config.max_clients);
+
+    // Aggiorna la configurazione globale con la porta effettivamente utilizzata
+    global_config.port = current_port;
 
     return server_fd;
 }
