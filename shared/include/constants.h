@@ -1,18 +1,31 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-// Configurazioni di rete
-#define DEFAULT_SERVER_IP "127.0.0.1"
-#define DEFAULT_SERVER_PORT 8080
-#define BACKLOG_SIZE 10
+// Dimensioni fisse del gioco Tris
+#define BOARD_SIZE 3                    // Tabellone 3x3 (regola del Tris)
+#define MAX_PLAYERS_PER_GAME 2          // Tris è sempre 1v1
 
-// Buffer sizes
-#define BUFFER_SIZE 1024
-#define MAX_FILENAME_LENGTH 256
+// Lunghezze massime stringhe
+#define MAX_PLAYER_NAME 32              // Nome giocatore
+#define MAX_GAME_ID_LEN 16              // ID partita
+#define MAX_MESSAGE_SIZE 1024           // Messaggio protocollo
 
-// Timeout
-#define CONNECTION_TIMEOUT 30
-#define READ_TIMEOUT 10
+// Stati del gioco
+#define GAME_NEW 0                      // Partita appena creata
+#define GAME_WAITING 1                  // In attesa di giocatori
+#define GAME_IN_PROGRESS 2              // Partita in corso
+#define GAME_FINISHED 3                 // Partita terminata
+
+// Risultati partita
+#define RESULT_NONE 0                   // Nessun risultato
+#define RESULT_WIN 1                    // Vittoria
+#define RESULT_LOSE 2                   // Sconfitta
+#define RESULT_DRAW 3                   // Pareggio
+
+// Simboli giocatori
+#define PLAYER_X 'X'                    // Primo giocatore
+#define PLAYER_O 'O'                    // Secondo giocatore
+#define EMPTY_CELL '_'                  // Cella vuota
 
 // Return codes
 #define SUCCESS 0

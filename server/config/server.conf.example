@@ -1,4 +1,16 @@
+# Configurazioni di rete
+server_ip=127.0.0.1
 port=90
+backlog_size=5
+
+# Limiti server
 max_clients=7
+max_games=4
+
+# Timeout (in secondi)
+connection_timeout=300
+read_timeout=30
+
+# Logging
 log_level=INFO
 log_file=logs/server.log

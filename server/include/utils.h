@@ -17,8 +17,20 @@ typedef enum {
 
 // Struttura per memorizzare la configurazione del server
 typedef struct {
+    // Configurazioni di rete
+    char server_ip[16];
     int port;
+    int backlog_size;
+    
+    // Limiti server
     int max_clients;
+    int max_games;
+    
+    // Timeout
+    int connection_timeout;
+    int read_timeout;
+    
+    // Logging
     char log_level[20];
     char log_file[256];
 } ServerConfig;
