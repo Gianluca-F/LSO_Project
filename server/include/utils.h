@@ -30,7 +30,6 @@ extern pthread_mutex_t log_mutex;
 // Funzioni per gestire la configurazione
 int load_config(const char* config_file, ServerConfig* config);
 void print_config(const ServerConfig* config);
-void set_default_config(ServerConfig* config);
 
 // Funzioni per il logging
 void init_logging(void);

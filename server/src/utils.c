@@ -7,26 +7,14 @@
 ServerConfig global_config;
 pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Imposta valori di default per la configurazione
-void set_default_config(ServerConfig* config) {
-    config->port = 8080;
-    config->max_clients = 100;
-    strcpy(config->log_level, "INFO");
-    strcpy(config->log_file, "logs/server.log");
-}
-
 // Carica la configurazione dal file
 int load_config(const char* config_file, ServerConfig* config) {
     FILE* file = fopen(config_file, "r");
     if (!file) {
         printf("Impossibile aprire il file di configurazione: %s\n", config_file);
         printf("Utilizzo configurazione di default.\n");
-        set_default_config(config);
         return 0;
     }
-    
-    // Imposta prima i valori di default
-    set_default_config(config);
     
     char line[256];
     while (fgets(line, sizeof(line), file)) {
@@ -86,7 +74,7 @@ LogLevel get_log_level_from_string(const char* level_str) {
     if (strcmp(level_str, "WARN") == 0) return LOG_WARN;
     if (strcmp(level_str, "ERROR") == 0) return LOG_ERROR;
     return LOG_INFO; // Default
-}
+} 
 
 // Converte enum livello log in stringa
 const char* get_log_level_string(LogLevel level) {
