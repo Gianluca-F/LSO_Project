@@ -279,7 +279,7 @@ int protocol_validate_name(const char *name);
  * Valida coordinate mossa
  * @return 1 se valide, 0 altrimenti
  */
-int protocol_validate_move(uint8_t row, uint8_t col);
+int protocol_validate_move(uint8_t pos);
 
 /**
  * Valida game_id

@@ -137,10 +137,9 @@ int protocol_validate_name(const char *name) {
     return 1;
 }
 
-int protocol_validate_move(uint8_t row, uint8_t col) {
+int protocol_validate_move(uint8_t pos) {
     // For tictactoe, valid positions are 1-9
-    // This function validates if we're using row/col system (0-2 each)
-    return (row < BOARD_SIZE && col < BOARD_SIZE);
+    return (pos >= 1 && pos <= 9);
 }
 
 int protocol_validate_game_id(const char *game_id) {
