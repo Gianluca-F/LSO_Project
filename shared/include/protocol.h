@@ -167,12 +167,13 @@ typedef struct __attribute__((packed)) {
 // Tipi di notifica
 typedef enum {
     NOTIFY_GAME_CREATED = 100,   // Partita creata
-    NOTIFY_PLAYER_JOINED = 101,  // Secondo giocatore entrato
-    NOTIFY_GAME_START = 102,     // Partita iniziata
-    NOTIFY_YOUR_TURN = 103,      // È il tuo turno
-    NOTIFY_MOVE_MADE = 104,      // L'avversario ha fatto una mossa
-    NOTIFY_GAME_END = 105,       // Partita terminata
-    NOTIFY_OPPONENT_LEFT = 106,  // Avversario ha abbandonato
+    NOTIFY_JOIN_RESPONSE = 101,  // Risposta a richiesta di join (accettata/rifiutata)
+    NOTIFY_PLAYER_JOINED = 102,  // Secondo giocatore entrato
+    NOTIFY_GAME_START = 103,     // Partita iniziata
+    NOTIFY_YOUR_TURN = 104,      // È il tuo turno
+    NOTIFY_MOVE_MADE = 105,      // L'avversario ha fatto una mossa
+    NOTIFY_GAME_END = 106,       // Partita terminata
+    NOTIFY_OPPONENT_LEFT = 107,  // Avversario ha abbandonato
 } notify_type_t;
 
 // NOTIFY_GAME_CREATED: Partita creata (messaggio broadcast a tutti i client registrati)
@@ -181,6 +182,13 @@ typedef struct __attribute__((packed)) {
     char game_id[MAX_GAME_ID_LEN];
     char creator[MAX_PLAYER_NAME];
 } notify_game_created_t;
+
+// NOTIFY_JOIN_RESPONSE: Risposta a richiesta di join
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;    // NOTIFY_JOIN_RESPONSE
+    uint8_t accepted;       // 1 = accettato, 0 = rifiutato
+    char game_id[MAX_GAME_ID_LEN];
+} notify_join_response_t;
 
 // NOTIFY_PLAYER_JOINED: Secondo giocatore si è unito
 typedef struct __attribute__((packed)) {

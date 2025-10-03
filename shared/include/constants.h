@@ -30,7 +30,7 @@
 // Simboli giocatori
 #define PLAYER_X 'X'                    // Primo giocatore
 #define PLAYER_O 'O'                    // Secondo giocatore
-#define EMPTY_CELL '_'                  // Cella vuota
+#define EMPTY_CELL ' '                  // Cella vuota
 
 // Return codes
 #define SUCCESS 0
