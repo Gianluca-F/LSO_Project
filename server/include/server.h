@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <pthread.h>
-#include "utils.h"
+#include "../include/utils.h"
 
 // Funzioni per la gestione del server
 int init_server(int port);
