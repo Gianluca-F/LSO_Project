@@ -1,19 +1,12 @@
-#ifndef UTILS_H
-#define UTILS_H
+#ifndef SERVER_UTILS_H
+#define SERVER_UTILS_H
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
-
-// Livelli di log
-typedef enum {
-    LOG_DEBUG = 0,
-    LOG_INFO = 1,
-    LOG_WARN = 2,
-    LOG_ERROR = 3
-} LogLevel;
+#include "../../shared/include/logging.h"
 
 // Struttura per memorizzare la configurazione del server
 typedef struct {
@@ -26,7 +19,7 @@ typedef struct {
     int max_clients;
     int max_games;
     
-    // Timeout
+    // Timeout //NOTE: Non usati al momento
     int connection_timeout;
     int read_timeout;
     
@@ -35,24 +28,17 @@ typedef struct {
     char log_file[256];
 } ServerConfig;
 
-// Variabile globale per la configurazione (usata dal logging)
+// Variabile globale per la configurazione
 extern ServerConfig server_config;
-extern pthread_mutex_t log_mutex;
+
+// Configurazione per il logging (compatibile con il sistema condiviso)
+extern LogConfig log_config;
 
 // Funzioni per gestire la configurazione
 int load_config(const char* config_file, ServerConfig* config);
 void print_config(const ServerConfig* config);
 
-// Funzioni per il logging
-void init_logging(void);
-void log_message(LogLevel level, const char* format, ...);
-LogLevel get_log_level_from_string(const char* level_str);
-const char* get_log_level_string(LogLevel level);
-
-// Macro per semplificare l'uso del logging
-#define LOG_ERROR(...) log_message(LOG_ERROR, __VA_ARGS__)
-#define LOG_WARN(...)  log_message(LOG_WARN, __VA_ARGS__)
-#define LOG_INFO(...)  log_message(LOG_INFO, __VA_ARGS__)
-#define LOG_DEBUG(...) log_message(LOG_DEBUG, __VA_ARGS__)
+// Funzione per inizializzare la configurazione di logging dal server config
+void init_server_logging(void);
 
 #endif

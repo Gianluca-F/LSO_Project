@@ -1,4 +1,11 @@
+# Configurazione di rete
 server_ip=127.0.0.1
 server_port=90
+
+# Timeout (in secondi)
 connection_timeout=30
 retry_attempts=3
+
+# Logging
+log_level=DEBUG
+log_file=logs/client.log

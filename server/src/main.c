@@ -10,7 +10,7 @@ int main() {
     print_config(&server_config);
     
     // Inizializza il sistema di logging
-    init_logging();
+    init_server_logging();
     LOG_INFO("Server avviato, caricamento configurazione completato");
 
     // Inizializza il server

@@ -8,7 +8,7 @@ TARGET = bin/client
 
 # Sorgenti
 SRC = src/main.c src/client.c src/utils.c
-SHARED_SRC = ../shared/src/protocol.c
+SHARED_SRC = ../shared/src/logging.c ../shared/src/protocol.c
 
 # File oggetto nella cartella obj/
 OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
