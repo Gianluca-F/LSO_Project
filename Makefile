@@ -14,6 +14,7 @@ clean:
 
 clean-all: clean
 	rm -rf server/logs/*
+	rm -rf client/logs/*
 
 run-server:
 	$(MAKE) -C server run

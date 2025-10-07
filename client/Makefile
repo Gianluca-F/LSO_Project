@@ -14,8 +14,8 @@ SHARED_SRC = ../shared/src/logging.c ../shared/src/protocol.c
 OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
 SHARED_OBJ = $(patsubst ../shared/src/%.c,obj/%.o,$(SHARED_SRC))
 
-# Crea cartelle obj e bin se non esistono
-DIRS = obj bin
+# Crea cartelle obj, bin e logs se non esistono
+DIRS = obj bin logs
 
 all: $(DIRS) $(TARGET)
 
