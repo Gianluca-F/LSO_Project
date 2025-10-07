@@ -130,7 +130,7 @@ int init_server(int requested_port) {
     }
 
     // Listen - usa max_clients dalla configurazione
-    if (listen(server_fd, global_config.max_clients) < 0) {
+    if (listen(server_fd, server_config.max_clients) < 0) {
         LOG_ERROR("Listen fallito: %s", strerror(errno));
         perror("Listen fallito");
         close(server_fd);
@@ -138,10 +138,10 @@ int init_server(int requested_port) {
     }
 
     printf("Server in ascolto sulla porta %d...\n", current_port);
-    LOG_INFO("Server in ascolto sulla porta %d, max client: %d", current_port, global_config.max_clients);
+    LOG_INFO("Server in ascolto sulla porta %d, max client: %d", current_port, server_config.max_clients);
 
     // Aggiorna la configurazione globale con la porta effettivamente utilizzata
-    global_config.port = current_port;
+    server_config.port = current_port;
 
     return server_fd;
 }

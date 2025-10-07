@@ -2,7 +2,7 @@
 #define CONSTANTS_H
 
 // Dimensioni fisse del gioco Tris
-#define BOARD_SIZE 3                    // Tabellone 3x3 (regola del Tris)
+#define BOARD_SIZE 9                    // Tabellone 3x3 (regola del Tris)
 #define MAX_PLAYERS_PER_GAME 2          // Tris è sempre 1v1
 
 // Lunghezze massime stringhe

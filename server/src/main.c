@@ -6,15 +6,15 @@
 
 int main() {
     // Carica la configurazione
-    load_config("config/server.conf", &global_config);
-    print_config(&global_config);
+    load_config("config/server.conf", &server_config);
+    print_config(&server_config);
     
     // Inizializza il sistema di logging
     init_logging();
     LOG_INFO("Server avviato, caricamento configurazione completato");
 
     // Inizializza il server
-    int server_fd = init_server(global_config.port);
+    int server_fd = init_server(server_config.port);
     if (server_fd < 0) {
         LOG_ERROR("Inizializzazione server fallita");
         exit(EXIT_FAILURE);

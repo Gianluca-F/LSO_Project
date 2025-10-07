@@ -5,7 +5,7 @@
 #include <errno.h>
 
 // Variabili globali
-ServerConfig global_config;
+ServerConfig server_config;
 pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Carica la configurazione dal file
@@ -117,7 +117,7 @@ void init_logging(void) {
 // Funzione principale per scrivere nel log
 void log_message(LogLevel level, const char* format, ...) {
     // Controlla se il livello è abbastanza alto per essere loggato
-    LogLevel min_level = get_log_level_from_string(global_config.log_level);
+    LogLevel min_level = get_log_level_from_string(server_config.log_level);
     if (level < min_level) {
         return; // Non logga se il livello è troppo basso
     }
@@ -132,11 +132,11 @@ void log_message(LogLevel level, const char* format, ...) {
     strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", tm_info);
     
     // Apri il file di log in append
-    FILE* log_file = fopen(global_config.log_file, "a");
+    FILE* log_file = fopen(server_config.log_file, "a");
     if (!log_file) {
         // Se non riesce ad aprire il file, scrivi su stderr
         fprintf(stderr, "ERRORE: Impossibile aprire file di log %s: %s\n", 
-                global_config.log_file, strerror(errno));
+                server_config.log_file, strerror(errno));
         pthread_mutex_unlock(&log_mutex);
         return;
     }

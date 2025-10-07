@@ -36,7 +36,7 @@ typedef struct {
 } ServerConfig;
 
 // Variabile globale per la configurazione (usata dal logging)
-extern ServerConfig global_config;
+extern ServerConfig server_config;
 extern pthread_mutex_t log_mutex;
 
 // Funzioni per gestire la configurazione
