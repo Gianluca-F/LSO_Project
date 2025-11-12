@@ -16,13 +16,8 @@
 #define GAME_IN_PROGRESS 2              // Partita in corso
 #define GAME_FINISHED 3                 // Partita terminata
 
-// Stati connessione giocatore
-#define PLAYER_CONNECTED 0              // Connesso ma non registrato
-#define PLAYER_REGISTERED 1             // Registrato ma non in partita
-#define PLAYER_IN_GAME 2                // In partita
-
 // Risultati partita
-#define RESULT_NONE 0                   // Nessun risultato
+#define RESULT_NONE 0                   // Nessun risultato //NOTE: not used
 #define RESULT_WIN 1                    // Vittoria
 #define RESULT_LOSE 2                   // Sconfitta
 #define RESULT_DRAW 3                   // Pareggio

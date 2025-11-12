@@ -40,7 +40,7 @@ int load_config(const char* config_file, ClientConfig* config) {
         // Interpreta i parametri
         if (strcmp(key, "server_ip") == 0) {
             strncpy(config->server_ip, value, sizeof(config->server_ip) - 1);
-        } else if (strcmp(key, "port") == 0) {
+        } else if (strcmp(key, "server_port") == 0) {
             config->port = atoi(value);
         } else if (strcmp(key, "connection_timeout") == 0) {
             config->connection_timeout = atoi(value);

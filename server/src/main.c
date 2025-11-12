@@ -13,6 +13,10 @@ int main() {
     init_server_logging();
     LOG_INFO("Server avviato, caricamento configurazione completato");
 
+    // Inizializza lo stato globale del server
+    init_server_state();
+    LOG_INFO("Stato server inizializzato");
+
     // Inizializza il server
     int server_fd = init_server(server_config.port);
     if (server_fd < 0) {
