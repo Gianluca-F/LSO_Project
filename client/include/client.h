@@ -61,7 +61,7 @@ void *notification_thread_func(void *arg);
 
 // === Gestori delle notifiche ===
 void handle_game_created_notification(const notify_game_created_t *notify);
-void handle_player_joined_notification(const notify_player_joined_t *notify);
+void handle_join_request_notification(const notify_join_request_t *notify);
 void handle_join_response_notification(const notify_join_response_t *notify);
 void handle_game_start_notification(const notify_game_start_t *notify);
 void handle_move_made_notification(const notify_move_made_t *notify);

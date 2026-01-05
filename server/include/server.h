@@ -169,7 +169,7 @@ void broadcast_to_registered_clients(uint8_t msg_type, const void *payload, size
 /**
  * Notifica al creatore che qualcuno vuole joinare
  */
-void notify_player_joined(int creator_fd, const char *joiner_name);
+void notify_join_request(int creator_fd, const char *joiner_name);
 
 /**
  * Notifica al joiner se è stato accettato o rifiutato
