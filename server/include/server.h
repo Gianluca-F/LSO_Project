@@ -123,21 +123,24 @@ void remove_client(int fd);
 
 /**
  * Trova una partita per game_id
- * @return Puntatore alla partita o NULL se non trovata
+ * @return Indice nell'array games, o -1 se non trovata
+ * NOTA: Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-game_session_t* find_game_by_id(const char *game_id);
+int find_game_by_id(const char *game_id);
 
 /**
  * Trova la partita di un client
- * @return Puntatore alla partita o NULL se il client non è in partita
+ * @return Indice nell'array games, o -1 se il client non è in partita
+ * NOTA: Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-game_session_t* find_game_by_client_fd(int fd); //NOTE: not used
+int find_game_by_client_fd(int fd); //NOTE: not used
 
 /**
  * Crea una nuova partita
- * @return Puntatore alla partita creata o NULL se array pieno
+ * @return Indice nell'array games, o -1 se array pieno
+ * NOTA: Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-game_session_t* create_game(const char *creator_name, int creator_fd);
+int create_game(const char *creator_name, int creator_fd);
 
 /**
  * Pulisce una partita terminata
