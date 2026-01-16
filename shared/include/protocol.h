@@ -17,6 +17,19 @@ typedef struct __attribute__((packed)) {
 } protocol_header_t;
 
 // ============================================================================
+// STATI DELLA CONNESSIONE CLIENT-SERVER
+// ============================================================================
+
+typedef enum {
+    CLIENT_DISCONNECTED = 0,      // Non connesso
+    CLIENT_CONNECTED = 1,         // Connesso ma non autenticato
+    CLIENT_REGISTERED = 2,        // Registrato, disponibile per giocare
+    CLIENT_IN_LOBBY = 3,          // Ha creato una partita, attende richiesta di join
+    CLIENT_REQUESTING_JOIN = 4,   // Ha richiesto join, attende accept/reject
+    CLIENT_IN_GAME = 5            // In partita attiva
+} client_status_t;
+
+// ============================================================================
 // STRUTTURE DATI AUSILIARIE
 // ============================================================================
 
@@ -95,20 +108,30 @@ typedef enum {
     ERR_NONE = 0,
     ERR_GAME_NOT_FOUND = 1,
     ERR_GAME_FULL = 2,
-    ERR_ALREADY_IN_GAME = 3,
-    ERR_NOT_IN_GAME = 4,
-    ERR_NOT_YOUR_TURN = 5,
-    ERR_INVALID_MOVE = 6,
-    ERR_CELL_OCCUPIED = 7,
-    ERR_SERVER_FULL = 8,
+    ERR_REQUEST_PENDING = 3,
+    ERR_NO_PENDING_JOIN = 4,
+    ERR_ALREADY_IN_GAME = 5,
+    ERR_NOT_IN_GAME = 6,
+    ERR_NOT_YOUR_TURN = 7,
+    ERR_INVALID_MOVE = 8,
+    ERR_CELL_OCCUPIED = 9,
+    ERR_NOT_REGISTERED = 10,
+    ERR_ALREADY_REGISTERED = 11,
+    ERR_INVALID_NAME = 12,
+    ERR_NAME_TAKEN = 13,
+    ERR_SERVER_FULL = 90,
+    ERR_INVALID_PAYLOAD = 91,
     ERR_INTERNAL = 99,
 } error_code_t;
 
-// Risposta a MSG_REGISTER
+// Risposta generica
 typedef struct __attribute__((packed)) {
     uint8_t status;         // STATUS_OK o STATUS_ERROR
     uint8_t error_code;     // error_code_t (se status == STATUS_ERROR)
-} response_register_t;
+} response_generic_t;
+
+// Risposta a MSG_REGISTER (alias per chiarezza)
+typedef response_generic_t response_register_t;
 
 // Risposta a MSG_CREATE_GAME
 typedef struct __attribute__((packed)) {
@@ -131,21 +154,19 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t status;
     uint8_t error_code;
-    uint8_t your_symbol;    // 'X' o 'O' (se OK)
-    char opponent[MAX_PLAYER_NAME];
+    uint8_t your_symbol;            // 'X' o 'O' (se OK)
+    char opponent[MAX_PLAYER_NAME]; // Nome avversario (se OK)
+    char game_id[MAX_GAME_ID_LEN];  // ID della partita (se OK)
 } response_join_game_t;
 
-// Risposta a MSG_MAKE_MOVE
-typedef struct __attribute__((packed)) {
-    uint8_t status;
-    uint8_t error_code;
-} response_make_move_t;
+// Risposta a MSG_ACCEPT_JOIN (alias per chiarezza)
+typedef response_generic_t response_accept_join_t;
 
-// Risposta a MSG_LEAVE_GAME
-typedef struct __attribute__((packed)) {
-    uint8_t status;
-    uint8_t error_code;
-} response_leave_game_t;
+// Risposta a MSG_MAKE_MOVE (alias per chiarezza)
+typedef response_generic_t response_make_move_t;
+
+// Risposta a MSG_LEAVE_GAME (alias per chiarezza)
+typedef response_generic_t response_leave_game_t;
 
 // Risposta a MSG_NEW_GAME
 typedef struct __attribute__((packed)) {
@@ -154,11 +175,8 @@ typedef struct __attribute__((packed)) {
     char game_id[MAX_GAME_ID_LEN];  // ID della nuova partita (se OK)
 } response_new_game_t;
 
-// Risposta a MSG_QUIT
-typedef struct __attribute__((packed)) {
-    uint8_t status;
-    uint8_t error_code;
-} response_quit_t;
+// Risposta a MSG_QUIT (alias per chiarezza)
+typedef response_generic_t response_quit_t;
 
 // ============================================================================
 // PAYLOADS: SERVER -> CLIENT - NOTIFICHE
@@ -236,17 +254,35 @@ typedef struct __attribute__((packed)) {
 
 /**
  * Inizializza un header del protocollo
+ * 
+ * Imposta i campi dell'header e converte automaticamente
+ * length e seq_id in network byte order.
+ * 
+ * @param header Puntatore all'header da inizializzare
+ * @param msg_type Tipo di messaggio (MSG_*)
+ * @param length Lunghezza del payload in bytes
+ * @param seq_id ID sequenziale del messaggio
  */
 void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
                          uint16_t length, uint32_t seq_id);
 
 /**
  * Converte header da host a network byte order
+ * 
+ * Converte i campi multi-byte (length, seq_id) utilizzando
+ * htons/htonl per garantire compatibilità di rete.
+ * 
+ * @param header Puntatore all'header da convertire
  */
 void protocol_header_to_network(protocol_header_t *header);
 
 /**
  * Converte header da network a host byte order
+ * 
+ * Converte i campi multi-byte (length, seq_id) utilizzando
+ * ntohs/ntohl dopo la ricezione dalla rete.
+ * 
+ * @param header Puntatore all'header da convertire
  */
 void protocol_header_to_host(protocol_header_t *header);
 
@@ -256,20 +292,44 @@ void protocol_header_to_host(protocol_header_t *header);
 
 /**
  * Invia un messaggio completo (header + payload)
- * @return numero di byte inviati, -1 se errore
+ * 
+ * Crea e inizializza l'header del protocollo, lo invia insieme
+ * al payload opzionale. Gestisce automaticamente la conversione
+ * in network byte order e l'invio atomico.
+ * 
+ * @param sockfd File descriptor del socket
+ * @param msg_type Tipo di messaggio (MSG_*)
+ * @param payload Puntatore al payload (NULL se nessun payload)
+ * @param payload_size Dimensione del payload in bytes
+ * @param seq_id ID sequenziale del messaggio
+ * @return Numero di byte inviati totali (header + payload), -1 se errore
  */
 ssize_t protocol_send(int sockfd, uint8_t msg_type, const void *payload, 
                      size_t payload_size, uint32_t seq_id);
 
 /**
  * Riceve l'header di un messaggio
- * @return numero di byte ricevuti, -1 se errore, 0 se connessione chiusa
+ * 
+ * Legge esattamente sizeof(protocol_header_t) bytes dal socket
+ * e converte automaticamente in host byte order.
+ * 
+ * @param sockfd File descriptor del socket
+ * @param header Puntatore all'header dove salvare i dati ricevuti
+ * @return sizeof(protocol_header_t) se successo, -1 se errore, 0 se connessione chiusa
  */
 ssize_t protocol_recv_header(int sockfd, protocol_header_t *header);
 
 /**
  * Riceve il payload di un messaggio
- * @return numero di byte ricevuti, -1 se errore
+ * 
+ * Legge esattamente 'length' bytes dal socket nel buffer fornito.
+ * Deve essere chiamata dopo protocol_recv_header() per leggere
+ * il payload indicato dall'header.
+ * 
+ * @param sockfd File descriptor del socket
+ * @param buffer Buffer dove salvare il payload ricevuto
+ * @param length Numero di bytes da ricevere (da header.length)
+ * @return Numero di byte ricevuti, -1 se errore
  */
 ssize_t protocol_recv_payload(int sockfd, void *buffer, size_t length);
 
@@ -279,18 +339,32 @@ ssize_t protocol_recv_payload(int sockfd, void *buffer, size_t length);
 
 /**
  * Valida un nome giocatore
+ * 
+ * Verifica che il nome non sia vuoto, non contenga caratteri
+ * non validi e rispetti la lunghezza massima.
+ * 
+ * @param name Nome giocatore da validare
  * @return 1 se valido, 0 altrimenti
  */
 int protocol_validate_name(const char *name);
 
 /**
- * Valida coordinate mossa
- * @return 1 se valide, 0 altrimenti
+ * Valida una posizione di mossa
+ * 
+ * Verifica che la posizione sia compresa tra 1 e 9 (inclusi).
+ * 
+ * @param pos Posizione della mossa (1-9)
+ * @return 1 se valida, 0 altrimenti
  */
 int protocol_validate_move(uint8_t pos);
 
 /**
- * Valida game_id
+ * Valida un ID di partita
+ * 
+ * Verifica che il game_id non sia vuoto e rispetti
+ * la lunghezza massima.
+ * 
+ * @param game_id ID della partita da validare
  * @return 1 se valido, 0 altrimenti
  */
 int protocol_validate_game_id(const char *game_id);
@@ -300,22 +374,42 @@ int protocol_validate_game_id(const char *game_id);
 // ============================================================================
 
 /**
- * Restituisce il nome del tipo di messaggio
+ * Restituisce il nome testuale del tipo di messaggio
+ * 
+ * Converte i codici MSG_* in stringhe leggibili per logging.
+ * 
+ * @param msg_type Codice del tipo di messaggio
+ * @return Stringa descrittiva (es. "MSG_REGISTER", "MSG_RESPONSE")
  */
 const char* protocol_msg_type_str(uint8_t msg_type);
 
 /**
- * Restituisce il nome del tipo di notifica
+ * Restituisce il nome testuale del tipo di notifica
+ * 
+ * Converte i codici NOTIFY_* in stringhe leggibili per logging.
+ * 
+ * @param notify_type Codice del tipo di notifica
+ * @return Stringa descrittiva (es. "NOTIFY_GAME_START")
  */
 const char* protocol_notify_type_str(uint8_t notify_type);
 
 /**
- * Restituisce la descrizione di un errore
+ * Restituisce la descrizione testuale di un codice di errore
+ * 
+ * Converte i codici ERR_* in messaggi leggibili dall'utente.
+ * 
+ * @param error Codice di errore (error_code_t)
+ * @return Stringa descrittiva dell'errore
  */
 const char* protocol_error_str(error_code_t error);
 
 /**
- * Stampa un header per debug
+ * Stampa un header del protocollo per debug
+ * 
+ * Visualizza tutti i campi dell'header in formato leggibile
+ * con informazioni sul tipo di messaggio e lunghezza payload.
+ * 
+ * @param header Puntatore all'header da stampare
  */
 void protocol_print_header(const protocol_header_t *header);
 
