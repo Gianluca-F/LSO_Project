@@ -200,7 +200,6 @@ void game_print_board(const game_state_t *game) {
     // Stato della partita
     printf("\nStato: ");
     switch (game->status) {
-        case GAME_NEW:         printf("Nuova"); break;
         case GAME_WAITING:     printf("In attesa di giocatori"); break;
         case GAME_IN_PROGRESS: printf("In corso (mossa %d)", game->move_count + 1); break;
         case GAME_FINISHED:    

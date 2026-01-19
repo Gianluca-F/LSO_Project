@@ -11,10 +11,9 @@
 #define MAX_MESSAGE_SIZE 1024           // Messaggio protocollo
 
 // Stati del gioco
-#define GAME_NEW 0                      // Partita appena creata
-#define GAME_WAITING 1                  // In attesa di giocatori
-#define GAME_IN_PROGRESS 2              // Partita in corso
-#define GAME_FINISHED 3                 // Partita terminata
+#define GAME_WAITING 0                  // In attesa del secondo giocatore
+#define GAME_IN_PROGRESS 1              // Partita in corso
+#define GAME_FINISHED 2                 // Partita terminata
 
 // Risultati partita
 #define RESULT_NONE 0                   // Nessun risultato //NOTE: not used

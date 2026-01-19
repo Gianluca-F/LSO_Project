@@ -15,7 +15,7 @@ typedef struct {
     char players[2][MAX_PLAYER_NAME];
     char board[9];          // Tris 3x3, posizioni 0-8
     int current_player;     // 0 o 1 (indice nel array players)
-    int status;             // GAME_NEW, GAME_WAITING, GAME_IN_PROGRESS, GAME_FINISHED
+    int status;             // GAME_WAITING, GAME_IN_PROGRESS, GAME_FINISHED
     int move_count;         // Numero mosse effettuate
     int winner;             // -1=nessuno, 0=player[0], 1=player[1], 2=pareggio
 } game_state_t;
