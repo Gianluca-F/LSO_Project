@@ -23,8 +23,10 @@ typedef struct {
     client_status_t status;             // Stato corrente del client
     int game_index;                     // Indice in games[] (-1 se non in partita)
     int player_index;                   // 0 o 1 nella partita (quale giocatore è)
-    uint32_t seq_id;                    // Sequence ID per messaggi
-    pthread_t thread_id;                // ID del thread che gestisce questo client
+
+    //NOTE: Potrebbero essere aggiunti altri campi in futuro
+    //uint32_t seq_id;                  // Sequence ID per messaggi
+    //pthread_t thread_id;              // ID del thread che gestisce questo client
 } client_info_t;
 
 /**
@@ -140,11 +142,10 @@ int find_client_by_name(const char *name);
  * lo stato del client a CLIENT_CONNECTED.
  * 
  * @param fd File descriptor del socket client
- * @param thread_id ID del thread che gestisce questo client
  * @return Indice nell'array clients, o -1 se array pieno
  * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-int add_client(int fd, pthread_t thread_id);
+int add_client(int fd);
 
 /**
  * Rimuove un client e fa cleanup completo
@@ -221,6 +222,14 @@ void handle_register(int client_fd, const void *payload, uint16_t length);
  * @param client_fd File descriptor del client creatore
  */
 void handle_create_game(int client_fd);
+
+/**
+ * Invia errore per MSG_LIST_GAMES
+ * 
+ * @param client_fd File descriptor del client richiedente
+ * @param error Codice errore da inviare
+ */
+static inline void send_list_games_error(int client_fd, error_code_t error);
 
 /**
  * Handler per MSG_LIST_GAMES - Lista partite disponibili

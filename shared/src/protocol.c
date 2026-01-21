@@ -191,8 +191,8 @@ const char* protocol_notify_type_str(uint8_t notify_type) {
     switch (notify_type) {
         case NOTIFY_GAME_CREATED:   return "NOTIFY_GAME_CREATED";
         case NOTIFY_JOIN_REQUEST:   return "NOTIFY_JOIN_REQUEST";
+        case NOTIFY_JOIN_RESPONSE:  return "NOTIFY_JOIN_RESPONSE";
         case NOTIFY_GAME_START:     return "NOTIFY_GAME_START";
-        case NOTIFY_YOUR_TURN:      return "NOTIFY_YOUR_TURN";
         case NOTIFY_MOVE_MADE:      return "NOTIFY_MOVE_MADE";
         case NOTIFY_GAME_END:       return "NOTIFY_GAME_END";
         case NOTIFY_OPPONENT_LEFT:  return "NOTIFY_OPPONENT_LEFT";

@@ -110,15 +110,17 @@ typedef enum {
     ERR_GAME_FULL = 2,
     ERR_REQUEST_PENDING = 3,
     ERR_NO_PENDING_JOIN = 4,
-    ERR_ALREADY_IN_GAME = 5,
-    ERR_NOT_IN_GAME = 6,
-    ERR_NOT_YOUR_TURN = 7,
-    ERR_INVALID_MOVE = 8,
-    ERR_CELL_OCCUPIED = 9,
-    ERR_NOT_REGISTERED = 10,
-    ERR_ALREADY_REGISTERED = 11,
-    ERR_INVALID_NAME = 12,
-    ERR_NAME_TAKEN = 13,
+    ERR_PENDING_JOIN_EXISTS = 5,
+    ERR_NOT_IN_LOBBY = 6,
+    ERR_ALREADY_IN_GAME = 7,
+    ERR_NOT_IN_GAME = 8,
+    ERR_NOT_YOUR_TURN = 9,
+    ERR_INVALID_MOVE = 10,
+    ERR_CELL_OCCUPIED = 11,
+    ERR_NOT_REGISTERED = 20,
+    ERR_ALREADY_REGISTERED = 21,
+    ERR_INVALID_NAME = 22,
+    ERR_NAME_TAKEN = 23,
     ERR_SERVER_FULL = 90,
     ERR_INVALID_PAYLOAD = 91,
     ERR_INTERNAL = 99,
@@ -188,10 +190,9 @@ typedef enum {
     NOTIFY_JOIN_REQUEST = 101,   // Richiesta di join da un giocatore
     NOTIFY_JOIN_RESPONSE = 102,  // Risposta a richiesta di join (accettata/rifiutata)
     NOTIFY_GAME_START = 103,     // Partita iniziata
-    NOTIFY_YOUR_TURN = 104,      // È il tuo turno
-    NOTIFY_MOVE_MADE = 105,      // L'avversario ha fatto una mossa
-    NOTIFY_GAME_END = 106,       // Partita terminata
-    NOTIFY_OPPONENT_LEFT = 107,  // Avversario ha abbandonato
+    NOTIFY_MOVE_MADE = 104,      // L'avversario ha fatto una mossa (equivalente a YOUR_TURN)
+    NOTIFY_GAME_END = 105,       // Partita terminata
+    NOTIFY_OPPONENT_LEFT = 106,  // Avversario ha abbandonato
 } notify_type_t;
 
 // NOTIFY_GAME_CREATED: Partita creata (messaggio broadcast a tutti i client registrati)

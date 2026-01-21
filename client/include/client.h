@@ -36,6 +36,7 @@ typedef struct {
     // Sequenza messaggi
     uint32_t seq_id;                        // ID sequenziale per i messaggi
     uint8_t last_request_type;              // Ultimo tipo di richiesta inviata
+    int last_move_pos;                      // Ultima posizione mossa inviata (1-9)
 } client_state_t;
 
 // Stato globale del client (dichiarato extern, definito in client.c)
@@ -110,11 +111,10 @@ int send_accept_join_request(bool accept);
 /**
  * Invia una mossa di gioco al server
  * 
- * @param row Riga della mossa (0-2)
- * @param col Colonna della mossa (0-2)
+ * @param pos Posizione della mossa (1-9)
  * @return 0 se successo, -1 se errore
  */
-int send_make_move_request(int row, int col);
+int send_make_move_request(int pos);
 
 /**
  * Invia richiesta per abbandonare la partita corrente
@@ -131,7 +131,7 @@ int send_leave_game_request(void);
 int send_quit_request(void);
 
 // ============================================================================
-// THREAD PER GESTIRE LE NOTIFICHE
+// THREAD PER NOTIFICHE ASINCRONE
 // ============================================================================
 
 /**
