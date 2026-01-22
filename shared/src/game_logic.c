@@ -95,7 +95,7 @@ int game_make_move(game_state_t *game, int player_idx, int position) {
 }
 
 // ============================================================================
-// CONTROLLO VINCITORE
+// FUNZIONI DI STATO
 // ============================================================================
 
 int game_check_winner(const game_state_t *game) {
@@ -134,10 +134,6 @@ int game_check_winner(const game_state_t *game) {
     return -1;  // Nessun vincitore
 }
 
-// ============================================================================
-// FUNZIONI DI STATO
-// ============================================================================
-
 int game_is_finished(const game_state_t *game) {
     if (!game) return 0;
     return (game->status == GAME_FINISHED);
@@ -150,16 +146,16 @@ int game_is_player_turn(const game_state_t *game, const char *player_name) {
     return (strcmp(game->players[game->current_player], player_name) == 0);
 }
 
+// ============================================================================
+// FUNZIONI DI UTILITÀ
+// ============================================================================
+
 char game_get_player_symbol(const game_state_t *game, int player_idx) {
     if (!game || player_idx < 0 || player_idx > 1) return '\0';
     
     // Il giocatore 0 (creatore) è sempre 'X', il giocatore 1 è sempre 'O'
     return (player_idx == 0) ? PLAYER_X : PLAYER_O;
 }
-
-// ============================================================================
-// FUNZIONI DI UTILITÀ
-// ============================================================================
 
 void game_print_board(const game_state_t *game) {
     if (!game) {

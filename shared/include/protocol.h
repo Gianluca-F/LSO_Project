@@ -10,10 +10,9 @@
 // ============================================================================
 
 typedef struct __attribute__((packed)) {
-    uint8_t msg_type;       // Tipo di messaggio (vedi sotto)
-    uint8_t reserved;       // Riservato per uso futuro
-    uint16_t length;        // Lunghezza del payload (network byte order)
-    uint32_t seq_id;        // ID sequenza messaggio (network byte order)
+    uint8_t msg_type;             // Tipo di messaggio (vedi sotto)
+    uint16_t length;              // Lunghezza del payload (network byte order)
+    uint32_t seq_id;              // ID sequenza messaggio (network byte order)
 } protocol_header_t;
 
 // ============================================================================
@@ -22,7 +21,7 @@ typedef struct __attribute__((packed)) {
 
 typedef enum {
     CLIENT_DISCONNECTED = 0,      // Non connesso
-    CLIENT_CONNECTED = 1,         // Connesso ma non autenticato
+    CLIENT_CONNECTED = 1,         // Connesso, ma non autenticato
     CLIENT_REGISTERED = 2,        // Registrato, disponibile per giocare
     CLIENT_IN_LOBBY = 3,          // Ha creato una partita, attende richiesta di join
     CLIENT_REQUESTING_JOIN = 4,   // Ha richiesto join, attende accept/reject
@@ -44,18 +43,22 @@ typedef struct __attribute__((packed)) {
 // TIPI DI MESSAGGIO
 // ============================================================================
 
-// Messaggi Client -> Server
-#define MSG_REGISTER        1   // Registra giocatore
-#define MSG_CREATE_GAME     2   // Crea partita
-#define MSG_LIST_GAMES      3   // Lista partite disponibili
-#define MSG_JOIN_GAME       4   // Unisciti a partita
-#define MSG_ACCEPT_JOIN     5   // Accetta richiesta di join
-#define MSG_MAKE_MOVE       6   // Fai mossa
-#define MSG_LEAVE_GAME      7   // Abbandona partita
-#define MSG_NEW_GAME        8   // Richiesta nuova partita
-#define MSG_QUIT            9   // Disconnessione client
+/**
+ * Messaggi Client -> Server
+ */
+#define MSG_REGISTER        1   
+#define MSG_CREATE_GAME     2   
+#define MSG_LIST_GAMES      3   
+#define MSG_JOIN_GAME       4   
+#define MSG_ACCEPT_JOIN     5   
+#define MSG_MAKE_MOVE       6   
+#define MSG_LEAVE_GAME      7   
+#define MSG_NEW_GAME        8   
+#define MSG_QUIT            9   
 
-// Messaggi Server -> Client
+/**
+ * Messaggi Server -> Client
+ */
 #define MSG_RESPONSE        50  // Risposta generica
 #define MSG_NOTIFY          51  // Notifica asincrona
 
@@ -63,47 +66,69 @@ typedef struct __attribute__((packed)) {
 // PAYLOADS: CLIENT -> SERVER
 // ============================================================================
 
-// MSG_REGISTER: Registrazione giocatore
+/**
+ * MSG_REGISTER: Registrazione giocatore
+ */
 typedef struct __attribute__((packed)) {
     char player_name[MAX_PLAYER_NAME];
 } payload_register_t;
 
-// MSG_CREATE_GAME: Creazione partita (no payload, solo header)
+/**
+ * MSG_CREATE_GAME: Crea nuova partita (no payload, solo header)
+ */
 
-// MSG_LIST_GAMES: Richiesta lista partite (no payload, solo header)
+/**
+ * MSG_LIST_GAMES: Richiesta lista partite (no payload, solo header)
+ */ 
 
-// MSG_JOIN_GAME: Unisciti a partita
+/**
+ * MSG_JOIN_GAME: Unisciti a partita
+ */
 typedef struct __attribute__((packed)) {
     char game_id[MAX_GAME_ID_LEN];
 } payload_join_game_t;
 
-// MSG_ACCEPT_JOIN: Accetta richiesta di join
+/** 
+ * MSG_ACCEPT_JOIN: Accetta/rifiuta richiesta di join
+ */
 typedef struct __attribute__((packed)) {
     uint8_t accept;     // 1 = accetta, 0 = rifiuta
 } payload_accept_join_t;
 
-// MSG_MAKE_MOVE: Esegui mossa
+/**
+ * MSG_MAKE_MOVE: Esegui mossa
+ */
 typedef struct __attribute__((packed)) {
     uint8_t pos;    // 1-9
 } payload_make_move_t;
 
-// MSG_LEAVE_GAME: Abbandona partita (no payload, solo header)
+/**
+ * MSG_LEAVE_GAME: Abbandona partita (no payload, solo header)
+ */
 
-// MSG_NEW_GAME: Richiesta nuova partita (no payload, solo header)
+/**
+ * MSG_NEW_GAME: Richiesta nuova partita (no payload, solo header)
+ */
 
-// MSG_QUIT: Disconnessione client (no payload, solo header)
+/**
+ * MSG_QUIT: Disconnessione client (no payload, solo header)
+ */
 
 // ============================================================================
 // PAYLOADS: SERVER -> CLIENT - RISPOSTE
 // ============================================================================
 
-// Codici di stato
+/**
+ * Stati di risposta
+ */
 typedef enum {
     STATUS_OK = 0,
     STATUS_ERROR = 1
 } response_status_t;
 
-// Codici di errore
+/**
+ * Codici di errore
+ */
 typedef enum {
     ERR_NONE = 0,
     ERR_GAME_NOT_FOUND = 1,
@@ -126,127 +151,158 @@ typedef enum {
     ERR_INTERNAL = 99,
 } error_code_t;
 
-// Risposta generica
+/**
+ * Risposta generica
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t status;         // STATUS_OK o STATUS_ERROR
-    uint8_t error_code;     // error_code_t (se status == STATUS_ERROR)
+    uint8_t status;         
+    uint8_t error_code;
 } response_generic_t;
 
-// Risposta a MSG_REGISTER (alias per chiarezza)
+/**
+ * Risposta a MSG_REGISTER (alias per chiarezza)
+ */
 typedef response_generic_t response_register_t;
 
-// Risposta a MSG_CREATE_GAME
+/**
+ * Risposta a MSG_CREATE_GAME
+ */
 typedef struct __attribute__((packed)) {
     uint8_t status;
     uint8_t error_code;
-    char game_id[MAX_GAME_ID_LEN];  // ID della partita creata (se OK)
+    char game_id[MAX_GAME_ID_LEN];
 } response_create_game_t;
 
-// Risposta a MSG_LIST_GAMES
-// La dimensione totale del payload è: sizeof(response_list_games_t) + (game_count * sizeof(game_info_t))
+/**
+ * Risposta a MSG_LIST_GAMES
+ * 
+ * La dimensione totale del payload è:
+ * sizeof(response_list_games_t) + (game_count * sizeof(game_info_t))
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t status;                         // STATUS_OK o STATUS_ERROR
-    uint8_t error_code;                     // error_code_t (se status == STATUS_ERROR)
-    uint8_t game_count;                     // Numero di partite nella lista
-    uint8_t reserved;                       // Padding per allineamento
+    uint8_t status;                         
+    uint8_t error_code;                     
+    uint8_t game_count;
     // Seguito da: game_info_t games[game_count] (array dinamico)
 } response_list_games_t;
 
-// Risposta a MSG_JOIN_GAME
+/**
+ * Risposta a MSG_JOIN_GAME
+ */
 typedef struct __attribute__((packed)) {
     uint8_t status;
     uint8_t error_code;
-    uint8_t your_symbol;            // 'X' o 'O' (se OK)
-    char opponent[MAX_PLAYER_NAME]; // Nome avversario (se OK)
-    char game_id[MAX_GAME_ID_LEN];  // ID della partita (se OK)
+    uint8_t your_symbol;            
+    char opponent[MAX_PLAYER_NAME]; 
+    char game_id[MAX_GAME_ID_LEN];
 } response_join_game_t;
 
-// Risposta a MSG_ACCEPT_JOIN (alias per chiarezza)
+/** 
+ * Risposta a MSG_ACCEPT_JOIN (alias per chiarezza)
+ */
 typedef response_generic_t response_accept_join_t;
 
-// Risposta a MSG_MAKE_MOVE (alias per chiarezza)
+/** 
+ * Risposta a MSG_MAKE_MOVE (alias per chiarezza)
+ */
 typedef response_generic_t response_make_move_t;
 
-// Risposta a MSG_LEAVE_GAME (alias per chiarezza)
+/** 
+ * Risposta a MSG_LEAVE_GAME (alias per chiarezza)
+ */
 typedef response_generic_t response_leave_game_t;
 
-// Risposta a MSG_NEW_GAME
+/** 
+ * Risposta a MSG_NEW_GAME
+ */
 typedef struct __attribute__((packed)) {
     uint8_t status;
     uint8_t error_code;
-    char game_id[MAX_GAME_ID_LEN];  // ID della nuova partita (se OK)
+    char game_id[MAX_GAME_ID_LEN];
 } response_new_game_t;
 
-// Risposta a MSG_QUIT (alias per chiarezza)
+/** 
+ * Risposta a MSG_QUIT (alias per chiarezza)
+ */
 typedef response_generic_t response_quit_t;
 
 // ============================================================================
 // PAYLOADS: SERVER -> CLIENT - NOTIFICHE
 // ============================================================================
 
-// Tipi di notifica
+/**
+ * Tipi di notifica
+ */
 typedef enum {
-    NOTIFY_GAME_CREATED = 100,   // Partita creata
-    NOTIFY_JOIN_REQUEST = 101,   // Richiesta di join da un giocatore
-    NOTIFY_JOIN_RESPONSE = 102,  // Risposta a richiesta di join (accettata/rifiutata)
-    NOTIFY_GAME_START = 103,     // Partita iniziata
-    NOTIFY_MOVE_MADE = 104,      // L'avversario ha fatto una mossa (equivalente a YOUR_TURN)
-    NOTIFY_GAME_END = 105,       // Partita terminata
-    NOTIFY_OPPONENT_LEFT = 106,  // Avversario ha abbandonato
+    NOTIFY_GAME_CREATED = 100,   
+    NOTIFY_JOIN_REQUEST = 101,   
+    NOTIFY_JOIN_RESPONSE = 102,  
+    NOTIFY_GAME_START = 103,     
+    NOTIFY_MOVE_MADE = 104,      
+    NOTIFY_GAME_END = 105,       
+    NOTIFY_OPPONENT_LEFT = 106,  
 } notify_type_t;
 
-// NOTIFY_GAME_CREATED: Partita creata (messaggio broadcast a tutti i client registrati)
+/** 
+ * NOTIFY_GAME_CREATED: Nuova partita creata
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_GAME_CREATED
+    uint8_t notify_type;    
     char game_id[MAX_GAME_ID_LEN];
     char creator[MAX_PLAYER_NAME];
 } notify_game_created_t;
 
-// NOTIFY_JOIN_REQUEST: Richiesta di join da un giocatore
+/**
+ * NOTIFY_JOIN_REQUEST: Richiesta di join da un altro giocatore
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_JOIN_REQUEST
+    uint8_t notify_type;    
     char opponent[MAX_PLAYER_NAME];
 } notify_join_request_t;
 
-// NOTIFY_JOIN_RESPONSE: Risposta a richiesta di join
+/**
+ * NOTIFY_JOIN_RESPONSE: Risposta del creatore alla richiesta di join
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_JOIN_RESPONSE
+    uint8_t notify_type;    
     uint8_t accepted;       // 1 = accettato, 0 = rifiutato
     char game_id[MAX_GAME_ID_LEN];
 } notify_join_response_t;
 
-// NOTIFY_GAME_START: La partita inizia
+/** 
+ * NOTIFY_GAME_START: Inizio partita
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_GAME_START
+    uint8_t notify_type;    
     uint8_t your_symbol;    // 'X' o 'O'
     uint8_t first_player;   // 'X' o 'O' (chi inizia)
     char opponent[MAX_PLAYER_NAME];
 } notify_game_start_t;
 
-// NOTIFY_YOUR_TURN: È il tuo turno
+/**
+ * NOTIFY_MOVE_MADE: Mossa effettuata dall'avversario
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_YOUR_TURN
-    char board[BOARD_SIZE]; // Stato attuale ('X', 'O', '_')
-} notify_your_turn_t;
-
-// NOTIFY_MOVE_MADE: L'avversario ha mosso
-typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_MOVE_MADE
+    uint8_t notify_type;    
     uint8_t pos;            // 1-9
     uint8_t symbol;         // 'X' o 'O'
     char board[BOARD_SIZE]; // Stato aggiornato
 } notify_move_made_t;
 
-// NOTIFY_GAME_END: Partita terminata
+/**
+ * NOTIFY_GAME_END: Fine partita
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_GAME_END
+    uint8_t notify_type;    
     uint8_t result;         // RESULT_WIN, RESULT_LOSE, RESULT_DRAW
     char board[BOARD_SIZE]; // Stato finale
 } notify_game_end_t;
 
-// NOTIFY_OPPONENT_LEFT: Avversario ha abbandonato
+/** 
+ * NOTIFY_OPPONENT_LEFT: L'avversario ha abbandonato la partita
+ */
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;    // NOTIFY_OPPONENT_LEFT
+    uint8_t notify_type;    
 } notify_opponent_left_t;
 
 // ============================================================================
@@ -264,8 +320,8 @@ typedef struct __attribute__((packed)) {
  * @param length Lunghezza del payload in bytes
  * @param seq_id ID sequenziale del messaggio
  */
-void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
-                         uint16_t length, uint32_t seq_id);
+inline void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
+                                uint16_t length, uint32_t seq_id);
 
 /**
  * Converte header da host a network byte order
@@ -275,7 +331,7 @@ void protocol_init_header(protocol_header_t *header, uint8_t msg_type,
  * 
  * @param header Puntatore all'header da convertire
  */
-void protocol_header_to_network(protocol_header_t *header);
+inline void protocol_header_to_network(protocol_header_t *header); //NOTE: non usato
 
 /**
  * Converte header da network a host byte order
@@ -285,7 +341,7 @@ void protocol_header_to_network(protocol_header_t *header);
  * 
  * @param header Puntatore all'header da convertire
  */
-void protocol_header_to_host(protocol_header_t *header);
+inline void protocol_header_to_host(protocol_header_t *header);
 
 // ============================================================================
 // FUNZIONI DI INVIO/RICEZIONE
@@ -357,61 +413,6 @@ int protocol_validate_name(const char *name);
  * @param pos Posizione della mossa (1-9)
  * @return 1 se valida, 0 altrimenti
  */
-int protocol_validate_move(uint8_t pos);
+inline int protocol_validate_move(uint8_t pos);
 
-/**
- * Valida un ID di partita
- * 
- * Verifica che il game_id non sia vuoto e rispetti
- * la lunghezza massima.
- * 
- * @param game_id ID della partita da validare
- * @return 1 se valido, 0 altrimenti
- */
-int protocol_validate_game_id(const char *game_id);
-
-// ============================================================================
-// FUNZIONI DI DEBUG
-// ============================================================================
-
-/**
- * Restituisce il nome testuale del tipo di messaggio
- * 
- * Converte i codici MSG_* in stringhe leggibili per logging.
- * 
- * @param msg_type Codice del tipo di messaggio
- * @return Stringa descrittiva (es. "MSG_REGISTER", "MSG_RESPONSE")
- */
-const char* protocol_msg_type_str(uint8_t msg_type);
-
-/**
- * Restituisce il nome testuale del tipo di notifica
- * 
- * Converte i codici NOTIFY_* in stringhe leggibili per logging.
- * 
- * @param notify_type Codice del tipo di notifica
- * @return Stringa descrittiva (es. "NOTIFY_GAME_START")
- */
-const char* protocol_notify_type_str(uint8_t notify_type);
-
-/**
- * Restituisce la descrizione testuale di un codice di errore
- * 
- * Converte i codici ERR_* in messaggi leggibili dall'utente.
- * 
- * @param error Codice di errore (error_code_t)
- * @return Stringa descrittiva dell'errore
- */
-const char* protocol_error_str(error_code_t error);
-
-/**
- * Stampa un header del protocollo per debug
- * 
- * Visualizza tutti i campi dell'header in formato leggibile
- * con informazioni sul tipo di messaggio e lunghezza payload.
- * 
- * @param header Puntatore all'header da stampare
- */
-void protocol_print_header(const protocol_header_t *header);
-
-#endif // PROTOCOL_H
+#endif
