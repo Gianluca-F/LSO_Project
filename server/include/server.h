@@ -224,14 +224,6 @@ void handle_register(int client_fd, const void *payload, uint16_t length);
 void handle_create_game(int client_fd);
 
 /**
- * Invia errore per MSG_LIST_GAMES
- * 
- * @param client_fd File descriptor del client richiedente
- * @param error Codice errore da inviare
- */
-static inline void send_list_games_error(int client_fd, error_code_t error);
-
-/**
  * Handler per MSG_LIST_GAMES - Lista partite disponibili
  * 
  * @param client_fd File descriptor del client richiedente

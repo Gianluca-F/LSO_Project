@@ -19,7 +19,7 @@ client_state_t client_state = {
     .notification_thread = 0,
     .mutex = PTHREAD_MUTEX_INITIALIZER,
     .running = false,
-    .seq_id = 1,
+    .seq_id = 0,
     .last_request_type = 0,
     .last_move_pos = 0
 };
@@ -113,11 +113,6 @@ void client_disconnect(void) {
 int send_register_request(const char *username) {
     if (client_state.socket_fd < 0) {
         LOG_ERROR("Non connesso al server");
-        return -1;
-    }
-    
-    if (!protocol_validate_name(username)) {
-        LOG_ERROR("Nome utente non valido");
         return -1;
     }
     
@@ -247,11 +242,6 @@ int send_accept_join_request(bool accept) {
 int send_make_move_request(int pos) {
     if (client_state.socket_fd < 0) {
         LOG_ERROR("Non connesso al server");
-        return -1;
-    }
-    
-    if (!protocol_validate_move(pos)) {
-        LOG_ERROR("Mossa non valida: pos=%d", pos);
         return -1;
     }
     
@@ -522,7 +512,7 @@ void *notification_thread_func(void *arg) {
                             printf("Non è il tuo turno.");
                             break;
                         case ERR_INVALID_MOVE:
-                            printf("Mossa non valida.");
+                            printf("Mossa non valida. Assicurati che la mossa sia un numero intero valido tra 1 e 9.");
                             break;
                         case ERR_CELL_OCCUPIED:
                             printf("Cella già occupata.");
@@ -534,7 +524,7 @@ void *notification_thread_func(void *arg) {
                             printf("Sei già registrato.");
                             break;
                         case ERR_INVALID_NAME:
-                            printf("Nome utente non valido.");
+                            printf("Nome utente non valido. Usa solo lettere, numeri e underscore (max 32 caratteri).");
                             break;
                         case ERR_NAME_TAKEN:
                             printf("Nome utente già in uso.");
@@ -867,6 +857,12 @@ void client_run(void) {
             
             if (client_state.state != CLIENT_CONNECTED) {
                 printf("❌ Errore: sei gia registrato.\n");
+                printf("\n> ");
+                continue;
+            }
+
+            if (!protocol_validate_name(arg)) {
+                printf("❌ Errore: nome utente non valido. Usa solo lettere, numeri e underscore (max 32 caratteri).\n");
                 printf("\n> ");
                 continue;
             }
