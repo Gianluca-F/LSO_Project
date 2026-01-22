@@ -10,8 +10,8 @@
 // FUNZIONI DI UTILITÀ - HEADER
 // ============================================================================
 
-inline void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
-                                uint16_t length, uint32_t seq_id) {
+void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
+                         uint16_t length, uint32_t seq_id) {
     if (!header) return;
     
     header->msg_type = msg_type;
@@ -19,14 +19,14 @@ inline void protocol_init_header(protocol_header_t *header, uint8_t msg_type,
     header->seq_id = htonl(seq_id);
 }
 
-inline void protocol_header_to_network(protocol_header_t *header) {
+void protocol_header_to_network(protocol_header_t *header) {
     if (!header) return;
     
     header->length = htons(header->length);
     header->seq_id = htonl(header->seq_id);
 }
 
-inline void protocol_header_to_host(protocol_header_t *header) {
+void protocol_header_to_host(protocol_header_t *header) {
     if (!header) return;
     
     header->length = ntohs(header->length);

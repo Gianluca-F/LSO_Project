@@ -183,6 +183,7 @@ typedef struct __attribute__((packed)) {
     uint8_t status;                         
     uint8_t error_code;                     
     uint8_t game_count;
+    uint8_t reserved;       // Padding per allineamento, per usare aritmetica puntatori
     // Seguito da: game_info_t games[game_count] (array dinamico)
 } response_list_games_t;
 
@@ -320,8 +321,8 @@ typedef struct __attribute__((packed)) {
  * @param length Lunghezza del payload in bytes
  * @param seq_id ID sequenziale del messaggio
  */
-inline void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
-                                uint16_t length, uint32_t seq_id);
+void protocol_init_header(protocol_header_t *header, uint8_t msg_type, 
+                         uint16_t length, uint32_t seq_id);
 
 /**
  * Converte header da host a network byte order
@@ -331,7 +332,7 @@ inline void protocol_init_header(protocol_header_t *header, uint8_t msg_type,
  * 
  * @param header Puntatore all'header da convertire
  */
-inline void protocol_header_to_network(protocol_header_t *header); //NOTE: non usato
+void protocol_header_to_network(protocol_header_t *header);
 
 /**
  * Converte header da network a host byte order
@@ -341,7 +342,7 @@ inline void protocol_header_to_network(protocol_header_t *header); //NOTE: non u
  * 
  * @param header Puntatore all'header da convertire
  */
-inline void protocol_header_to_host(protocol_header_t *header);
+void protocol_header_to_host(protocol_header_t *header);
 
 // ============================================================================
 // FUNZIONI DI INVIO/RICEZIONE
@@ -413,6 +414,6 @@ int protocol_validate_name(const char *name);
  * @param pos Posizione della mossa (1-9)
  * @return 1 se valida, 0 altrimenti
  */
-inline int protocol_validate_move(uint8_t pos);
+int protocol_validate_move(uint8_t pos);
 
 #endif
