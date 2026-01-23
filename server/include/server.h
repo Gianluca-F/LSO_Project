@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "../../shared/include/constants.h"
 #include "../../shared/include/protocol.h"
 #include "../../shared/include/game_logic.h"
@@ -265,9 +266,10 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length);
 void handle_leave_game(int client_fd);
 
 /**
- * Handler per MSG_QUIT - Disconnessione client
+ * Handler per MSG_QUIT - Disconnessione volontaria del client
+ * Notifica avversario e invia risposta di conferma al client
  * 
- * @param client_fd File descriptor del client che si disconnette
+ * @param client_fd File descriptor del client che vuole disconnettersi
  */
 void handle_quit(int client_fd);
 
@@ -302,6 +304,16 @@ void send_list_games_error(int client_fd, error_code_t error);
  * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
 void cleanup_pending_join(int client_fd);
+
+/**
+ * Cleanup comune alla disconnessione di un client
+ * 
+ * Notifica l'avversario se il client era in partita,
+ * pulisce la partita e rimuove il client dallo stato.
+ * 
+ * @param client_fd File descriptor del client disconnesso
+ */
+void handle_disconnect(int client_fd);
 
 // ============================================================================
 // FUNZIONI DI NOTIFICA

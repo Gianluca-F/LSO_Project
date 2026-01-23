@@ -205,6 +205,7 @@ void *handle_client(void *arg) {
             } else {
                 LOG_WARN("Errore ricezione header da FD=%d: %s", client_fd, strerror(errno));
             }
+            handle_disconnect(client_fd); 
             break;
         }
         
@@ -269,7 +270,7 @@ void *handle_client(void *arg) {
             case MSG_QUIT:
                 handle_quit(client_fd);
                 free(payload);
-                should_run = false;  // Esci dal loop
+                should_run = false; 
                 break;
                 
             default:
@@ -392,38 +393,6 @@ void remove_client(int fd) {
         return;
     }
     
-    client_info_t *client = &server_state.clients[client_idx];
-    
-    // Se il client era in una partita, gestisci la disconnessione
-    if (client->game_index >= 0) {
-        game_session_t *game = &server_state.games[client->game_index];
-        
-        if (game->active) {
-            // Trova l'avversario
-            int opponent_fd = -1;
-            if (game->player_fds[0] == fd) {
-                opponent_fd = game->player_fds[1];
-            } else if (game->player_fds[1] == fd) {
-                opponent_fd = game->player_fds[0];
-            }
-            
-            // Notifica l'avversario che il giocatore ha abbandonato
-            if (opponent_fd > 0) {
-                notify_opponent_left_t notify;
-                notify.notify_type = NOTIFY_OPPONENT_LEFT;
-                protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-                
-                LOG_INFO("Notifica OPPONENT_LEFT inviata a FD=%d", opponent_fd);
-            }
-            
-            // Pulisci la partita
-            cleanup_game(game);
-        }
-    }
-    
-    LOG_INFO("Rimozione client FD=%d, nome='%s', status=%d, totale client rimanenti=%d", 
-             fd, client->name, client->status, server_state.num_clients - 1);
-    
     // Swap con l'ultimo client (O(1)) - se non è già l'ultimo
     int last_idx = server_state.num_clients - 1;
     if (client_idx != last_idx) {
@@ -436,6 +405,9 @@ void remove_client(int fd) {
     
     // Decrementa il contatore
     server_state.num_clients--;
+
+    LOG_INFO("Rimozione client FD=%d, totale client rimanenti=%d", 
+             fd, server_state.num_clients);
 }
 
 // ============================================================================
@@ -1221,48 +1193,10 @@ void handle_quit(int client_fd) {
     response_quit_t response;
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
-    
-    pthread_mutex_lock(&server_state.mutex);
-    
-    // Trova il client
-    int client_idx = find_client_by_fd(client_fd);
-    if (client_idx != -1) {
-        client_info_t *client = &server_state.clients[client_idx];
-        
-        // Se il client è in una partita, notifica l'avversario PRIMA di disconnettersi
-        if (client->game_index >= 0) {
-            game_session_t *game = &server_state.games[client->game_index];
-            
-            if (game->active) {
-                // Trova l'avversario
-                int opponent_fd = -1;
-                if (game->player_fds[0] == client_fd) {
-                    opponent_fd = game->player_fds[1];
-                } else if (game->player_fds[1] == client_fd) {
-                    opponent_fd = game->player_fds[0];
-                }
-                
-                // Notifica l'avversario che il giocatore ha abbandonato
-                if (opponent_fd > 0) {
-                    notify_opponent_left_t notify;
-                    notify.notify_type = NOTIFY_OPPONENT_LEFT;
-                    protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-                    
-                    LOG_INFO("QUIT: Notifica OPPONENT_LEFT inviata a FD=%d (client '%s' ha quitato)",
-                             opponent_fd, client->name);
-                }
-            }
-        }
-    }
-    
-    pthread_mutex_unlock(&server_state.mutex);
-    
-    // Invia risposta prima di chiudere
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
-    
-    LOG_INFO("Client FD=%d ha richiesto disconnessione", client_fd);
-    
-    // Il cleanup sarà fatto da remove_client() nel chiamante
+
+    handle_disconnect(client_fd);
+
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);    
 }
 
 // ============================================================================
@@ -1306,6 +1240,47 @@ void cleanup_pending_join(int client_fd) {
             break;
         }
     }
+}
+
+void handle_disconnect(int client_fd) {
+    pthread_mutex_lock(&server_state.mutex);
+    
+    // Trova il client
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx != -1) {
+        client_info_t *client = &server_state.clients[client_idx];
+        
+        if (client->status == CLIENT_REQUESTING_JOIN)
+        {
+            send_join_cancellation_notify_to_original_creator(client_fd);        
+            cleanup_pending_join(client_fd);
+            LOG_INFO("Client '%s' (FD=%d) disconnesso durante richiesta join, notifica inviata",
+                     client->name, client_fd);
+        }
+        else if (client->status == CLIENT_IN_GAME) {
+            game_session_t *game = &server_state.games[client->game_index];
+            
+            if (game->active) {
+                // Trova l'avversario
+                int opponent_idx = 1 - client->player_index;
+                int opponent_fd = game->player_fds[opponent_idx];
+                
+                // Notifica l'avversario che il giocatore ha abbandonato
+                if (opponent_fd > 0) {
+                    notify_opponent_left_t notify;
+                    notify.notify_type = NOTIFY_OPPONENT_LEFT;
+                    protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+                    
+                    LOG_INFO("Notifica OPPONENT_LEFT inviata a FD=%d (client '%s' disconnesso)",
+                             opponent_fd, client->name);
+                }
+
+                cleanup_game(game);
+            }
+        }
+    }
+
+    pthread_mutex_unlock(&server_state.mutex);
 }
 
 // ============================================================================

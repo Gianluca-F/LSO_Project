@@ -208,6 +208,15 @@ void handle_move_made_notification(const notify_move_made_t *notify);
  */
 void handle_game_over_notification(const notify_game_end_t *notify);
 
+/**
+ * Gestisce notifica di abbandono partita da parte dell'avversario
+ * 
+ * Notifica l'utente che l'avversario ha lasciato la partita
+ * e resetta lo stato del client a CLIENT_REGISTERED.
+ * 
+ */
+void handle_opponent_left_notification(const notify_opponent_left_t *notify);
+
 // ============================================================================
 // MENU INTERATTIVO
 // ============================================================================

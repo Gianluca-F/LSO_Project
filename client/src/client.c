@@ -588,16 +588,7 @@ void *notification_thread_func(void *arg) {
                     handle_game_over_notification((notify_game_end_t *)payload);
                     break;
                 case NOTIFY_OPPONENT_LEFT:
-                    LOG_INFO("L'avversario ha abbandonato la partita");
-                    printf("\n╔══════════════════════════════════════════════════╗\n");
-                    printf("║  ⚠️  L'AVVERSARIO HA ABBANDONATO LA PARTITA!  ⚠️   ║\n");
-                    printf("╚══════════════════════════════════════════════════╝\n");
-                    pthread_mutex_lock(&client_state.mutex);
-                    client_state.state = CLIENT_REGISTERED;
-                    client_state.current_game_id[0] = '\0';
-                    pthread_mutex_unlock(&client_state.mutex);
-                    printf("\nSei tornato al menu principale.\n");
-                    printf("Premi INVIO per continuare...\n");
+                    handle_opponent_left_notification((notify_opponent_left_t *)payload);
                     break;
                 default:
                     LOG_WARN("Tipo di notifica sconosciuto: %d", *notify_type);
@@ -797,6 +788,22 @@ void handle_game_over_notification(const notify_game_end_t *notify) {
     printf("========================================\n\n");
     
     LOG_INFO("Partita %s terminata: result=%d", old_game_id, notify->result);
+}
+
+void handle_opponent_left_notification(const notify_opponent_left_t *notify) {
+    LOG_INFO("L'avversario ha abbandonato la partita");
+    printf("\r \r");
+    printf("╔══════════════════════════════════════════════════╗\n");
+    printf("║  ⚠️  L'AVVERSARIO HA ABBANDONATO LA PARTITA!  ⚠️   ║\n");
+    printf("╚══════════════════════════════════════════════════╝\n");
+    printf("\n\t🎉 HAI VINTO! Complimenti! 🎉\n\n");
+    pthread_mutex_lock(&client_state.mutex);
+    uint8_t type = notify->notify_type; // Per togliere warning unused
+    (void)type;
+    client_state.state = CLIENT_REGISTERED;
+    client_state.current_game_id[0] = '\0';
+    pthread_mutex_unlock(&client_state.mutex);
+    printf("\nSei tornato al menu principale.\n");
 }
 
 // ============================================================================
