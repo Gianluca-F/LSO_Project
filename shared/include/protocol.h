@@ -237,11 +237,12 @@ typedef response_generic_t response_quit_t;
 typedef enum {
     NOTIFY_GAME_CREATED = 100,   
     NOTIFY_JOIN_REQUEST = 101,   
-    NOTIFY_JOIN_RESPONSE = 102,  
-    NOTIFY_GAME_START = 103,     
-    NOTIFY_MOVE_MADE = 104,      
-    NOTIFY_GAME_END = 105,       
-    NOTIFY_OPPONENT_LEFT = 106,  
+    NOTIFY_JOIN_CANCELLATION = 102,
+    NOTIFY_JOIN_RESPONSE = 103,  
+    NOTIFY_GAME_START = 104,     
+    NOTIFY_MOVE_MADE = 105,      
+    NOTIFY_GAME_END = 106,       
+    NOTIFY_OPPONENT_LEFT = 107,  
 } notify_type_t;
 
 /** 
@@ -260,6 +261,15 @@ typedef struct __attribute__((packed)) {
     uint8_t notify_type;    
     char opponent[MAX_PLAYER_NAME];
 } notify_join_request_t;
+
+
+/**
+ * NOTIFY_JOIN_CANCELLATION: Il joiner ha annullato la richiesta di join
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;    
+    char opponent[MAX_PLAYER_NAME];
+} notify_join_cancellation_t;
 
 /**
  * NOTIFY_JOIN_RESPONSE: Risposta del creatore alla richiesta di join

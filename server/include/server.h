@@ -271,6 +271,38 @@ void handle_leave_game(int client_fd);
  */
 void handle_quit(int client_fd);
 
+// ===========================================================================
+// HELPER PER GLI HANDLER
+// ===========================================================================
+
+/**
+ * Invia notifica di cancellazione join al creatore originale
+ * 
+ * @param joiner_fd File descriptor del client che ha annullato la richiesta di join
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
+ */
+void send_join_cancellation_notify_to_original_creator(int joiner_fd);
+
+/**
+ * Invia risposta di errore per LIST_GAMES
+ * 
+ * @param client_fd File descriptor del client
+ * @param error Codice di errore da inviare
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
+ */
+void send_list_games_error(int client_fd, error_code_t error);
+
+/**
+ * Pulisce lo stato di un join pendente per un client
+ * 
+ * Se il client aveva richiesto di joinare una partita,
+ * resetta lo stato della partita e del client.
+ * 
+ * @param client_fd File descriptor del client
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
+ */
+void cleanup_pending_join(int client_fd);
+
 // ============================================================================
 // FUNZIONI DI NOTIFICA
 // ============================================================================

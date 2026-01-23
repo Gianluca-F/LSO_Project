@@ -165,6 +165,13 @@ void handle_game_created_notification(const notify_game_created_t *notify);
 void handle_join_request_notification(const notify_join_request_t *notify);
 
 /**
+ * Gestisce notifica di cancellazione della richiesta di join
+ * 
+ * @param notify Puntatore alla notifica NOTIFY_JOIN_CANCELLATION
+ */
+void handle_join_cancellation_notification(const notify_join_cancellation_t *notify);
+
+/**
  * Gestisce risposta alla propria richiesta di join (accettato/rifiutato)
  * 
  * @param notify Puntatore alla notifica NOTIFY_JOIN_RESPONSE

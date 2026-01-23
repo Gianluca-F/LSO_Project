@@ -424,7 +424,7 @@ void *notification_thread_func(void *arg) {
                             client_state.my_symbol = 'O';  // Il joiner è sempre O
                             pthread_mutex_unlock(&client_state.mutex);
                             
-                            printf("\n✅ Richiesta di join inviata!"
+                            printf("\n✅ Richiesta di join avvenuta! (Scrivere \"leave\" per abbandonare)"
                                    "\n   In attesa che il creatore accetti la tua richiesta...");
                             fflush(stdout);
                             LOG_INFO("In attesa di accettazione per partita '%s'", join_resp->game_id);
@@ -512,7 +512,8 @@ void *notification_thread_func(void *arg) {
                             printf("Non è il tuo turno.");
                             break;
                         case ERR_INVALID_MOVE:
-                            printf("Mossa non valida. Assicurati che la mossa sia un numero intero valido tra 1 e 9.");
+                            printf("Mossa non valida. Assicurati che la mossa\n"
+                                   "   sia un numero intero valido tra 1 e 9.");
                             break;
                         case ERR_CELL_OCCUPIED:
                             printf("Cella già occupata.");
@@ -524,7 +525,8 @@ void *notification_thread_func(void *arg) {
                             printf("Sei già registrato.");
                             break;
                         case ERR_INVALID_NAME:
-                            printf("Nome utente non valido. Usa solo lettere, numeri e underscore (max 32 caratteri).");
+                            printf("Nome utente non valido. Usa solo lettere,\n"
+                                   "   numeri e underscore (max 32 caratteri).");
                             break;
                         case ERR_NAME_TAKEN:
                             printf("Nome utente già in uso.");
@@ -569,6 +571,9 @@ void *notification_thread_func(void *arg) {
                     break;
                 case NOTIFY_JOIN_REQUEST:
                     handle_join_request_notification((notify_join_request_t *)payload);
+                    break;
+                case NOTIFY_JOIN_CANCELLATION:
+                    handle_join_cancellation_notification((notify_join_cancellation_t *)payload);
                     break;
                 case NOTIFY_JOIN_RESPONSE:
                     handle_join_response_notification((notify_join_response_t *)payload);
@@ -641,6 +646,12 @@ void handle_join_request_notification(const notify_join_request_t *notify) {
     printf("Accetti? Invia il comando 'accept' per accettare o 'reject' per rifiutare.");
     fflush(stdout);
     LOG_INFO("Richiesta join da: %s", notify->opponent);
+}
+
+void handle_join_cancellation_notification(const notify_join_cancellation_t *notify) {
+    printf("[NOTIFICA] %s ha annullato la richiesta di join. <", notify->opponent);
+    fflush(stdout);
+    LOG_INFO("Join cancellato da: %s", notify->opponent);
 }
 
 void handle_join_response_notification(const notify_join_response_t *notify) {
@@ -856,13 +867,14 @@ void client_run(void) {
             }
             
             if (client_state.state != CLIENT_CONNECTED) {
-                printf("❌ Errore: sei gia registrato.\n");
+                printf("❌ Errore: sei già registrato.\n");
                 printf("\n> ");
                 continue;
             }
 
             if (!protocol_validate_name(arg)) {
-                printf("❌ Errore: nome utente non valido. Usa solo lettere, numeri e underscore (max 32 caratteri).\n");
+                printf("❌ Errore: nome utente non valido. Usa solo lettere,\n"
+                       "   numeri e underscore (max 32 caratteri).\n");
                 printf("\n> ");
                 continue;
             }
@@ -984,7 +996,7 @@ void client_run(void) {
         }
         // === LEAVE ===
         else if (strcmp(cmd, "leave") == 0) {
-            if (client_state.state != CLIENT_IN_GAME && 
+            if (client_state.state != CLIENT_IN_GAME  && 
                 client_state.state != CLIENT_IN_LOBBY &&
                 client_state.state != CLIENT_REQUESTING_JOIN) {
                 printf("❌ Errore: non sei in una partita.\n");
