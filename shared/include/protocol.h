@@ -6,7 +6,7 @@
 #include <sys/types.h>
 
 // ============================================================================
-// HEADER DEL PROTOCOLLO (8 bytes fissi)
+// HEADER DEL PROTOCOLLO (7 bytes fissi)
 // ============================================================================
 
 typedef struct __attribute__((packed)) {

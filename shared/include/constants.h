@@ -14,7 +14,7 @@
 
 #define MAX_PLAYER_NAME 32              // Nome giocatore
 #define MAX_GAME_ID_LEN 16              // ID partita
-#define MAX_MESSAGE_SIZE 1024           // Messaggio protocollo
+#define MAX_MESSAGE_SIZE 4096           // Messaggio protocollo
 
 // ============================================================================
 // STATI DEL GIOCO

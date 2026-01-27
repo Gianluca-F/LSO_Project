@@ -133,8 +133,7 @@ void start_server(int server_fd) {
         bool is_full = (server_state.num_clients >= server_state.max_clients);
         pthread_mutex_unlock(&server_state.mutex);
 
-        if (is_full) {
-            // Server pieno: rifiuta immediatamente senza creare thread
+        if (is_full) { // Server pieno: rifiuta immediatamente senza creare thread
             LOG_WARN("Server pieno (%d/%d client), rifiuto connessione FD=%d", 
                      server_state.num_clients, server_state.max_clients, new_client_fd);
             printf("⚠️  Connessione rifiutata (server pieno %d/%d): FD=%d\n",
@@ -185,8 +184,8 @@ void *handle_client(void *arg) {
     int client_idx = add_client(client_fd);
     pthread_mutex_unlock(&server_state.mutex);
     
+    // Questo non dovrebbe mai accadere perché controlliamo prima in start_server
     if (client_idx == -1) {
-        // Questo non dovrebbe mai accadere perché controlliamo prima in start_server
         LOG_ERROR("ERRORE CRITICO: Impossibile aggiungere client FD=%d nonostante controllo preventivo", client_fd);
         close(client_fd);
         pthread_exit(NULL);
@@ -1288,7 +1287,7 @@ void handle_disconnect(int client_fd) {
 // ============================================================================
 
 void broadcast_to_registered_clients(uint8_t msg_type, const void *payload, size_t payload_size) {
-    for (int i = 0; i < server_state.max_clients; i++) {
+    for (int i = 0; i < server_state.num_clients; i++) {
         if (server_state.clients[i].status == CLIENT_REGISTERED) {
             ssize_t sent = protocol_send(server_state.clients[i].fd, msg_type, 
                                         payload, payload_size, 0);
