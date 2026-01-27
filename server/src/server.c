@@ -461,6 +461,7 @@ int create_game(const char *creator_name, int creator_fd) {
             
             // Marca come attiva
             game->active = 1;
+            game->state.status = GAME_WAITING;
             server_state.num_games++;
             
             LOG_INFO("Partita creata: game_id='%s', creatore='%s', FD=%d, slot=%d, totale partite=%d",
@@ -1098,7 +1099,8 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
 
         pthread_mutex_lock(&server_state.mutex);
         notify_move.pos = move->pos;
-        notify_move.symbol = game_get_player_symbol(&game->state, client->player_index);
+        strncpy(notify_move.player, client->name, MAX_PLAYER_NAME - 1);
+        notify_move.player[MAX_PLAYER_NAME - 1] = '\0';
         memcpy(notify_move.board, board_str, BOARD_SIZE);
         
         pthread_mutex_unlock(&server_state.mutex);

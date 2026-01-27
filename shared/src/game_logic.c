@@ -15,17 +15,17 @@ void game_init(game_state_t *game, const char *game_id, const char *creator) {
     
     strncpy(game->players[0], creator, MAX_PLAYER_NAME - 1);
     game->players[0][MAX_PLAYER_NAME - 1] = '\0';
-    game->players[1][0] = '\0';  // Secondo giocatore vuoto
+    game->players[1][0] = '\0'; 
     
+    game->current_player = 0; // Il creatore inizia per default
+    game->status = GAME_CREATED;
+    game->move_count = 0;
+    game->winner = -1;  
+
     // Inizializza il tabellone (tutte le posizioni vuote)
     for (int i = 0; i < 9; i++) {
         game->board[i] = EMPTY_CELL;
-    }
-    
-    game->current_player = 0;   // Il creatore inizia sempre
-    game->status = GAME_WAITING;
-    game->move_count = 0;
-    game->winner = -1;          // Nessun vincitore
+    }     
 }
 
 int game_add_player(game_state_t *game, const char *player_name) {
@@ -62,14 +62,13 @@ int game_make_move(game_state_t *game, int player_idx, int position) {
     if (player_idx < 0 || player_idx > 1) return 0;
     if (position < 1 || position > 9) return 0;
     if (game->status != GAME_IN_PROGRESS) return 0;
-    if (player_idx != game->current_player) return 0;  // Non è il suo turno
+    if (player_idx != game->current_player) return 0;  
     
-    // Converte posizione 1-9 in indice 0-8
     int board_idx = position - 1;
     
     // Controlla se la cella è libera
     if (game->board[board_idx] != EMPTY_CELL) {
-        return 0;  // Cella già occupata
+        return 0; 
     }
     
     // Effettua la mossa
@@ -84,7 +83,7 @@ int game_make_move(game_state_t *game, int player_idx, int position) {
         game->status = GAME_FINISHED;
     } else if (game->move_count == 9) {
         // Pareggio - tabellone pieno
-        game->winner = 2;  // Indica pareggio
+        game->winner = 2;  
         game->status = GAME_FINISHED;
     } else {
         // Passa il turno all'altro giocatore
@@ -163,7 +162,22 @@ void game_print_board(const game_state_t *game) {
         return;
     }
     
-    printf("\n=== Partita: %s ===\n", game->game_id);
+    printf("\n=== Partita: ");
+    switch (game->status) {
+        case GAME_WAITING:     printf("in attesa di giocatori"); break;
+        case GAME_IN_PROGRESS: printf("in corso (mossa %d)", game->move_count + 1); break;
+        case GAME_FINISHED:    
+            if (game->winner == 2) {
+                printf("finita - pareggio");
+            } else if (game->winner >= 0) {
+                printf("finita - vince: %s", game->players[game->winner]);
+            } else {
+                printf("finita");
+            }
+            break;
+        default: printf("Sconosciuto"); break;
+    }
+    printf(" ===\n");
     printf("Giocatori: %s (%s%s%c%s) vs %s (%s%s%c%s)\n", 
            game->players[0], 
            COLOR_RED, BOLD, PLAYER_X, RESET,
@@ -192,24 +206,6 @@ void game_print_board(const game_state_t *game) {
         if (row < 2) printf("_____|_____|_____");
     }
     printf("     |     |     \n");
-    
-    // Stato della partita
-    printf("\nStato: ");
-    switch (game->status) {
-        case GAME_WAITING:     printf("In attesa di giocatori"); break;
-        case GAME_IN_PROGRESS: printf("In corso (mossa %d)", game->move_count + 1); break;
-        case GAME_FINISHED:    
-            if (game->winner == 2) {
-                printf("Finita - PAREGGIO");
-            } else if (game->winner >= 0) {
-                printf("Finita - Vince: %s", game->players[game->winner]);
-            } else {
-                printf("Finita");
-            }
-            break;
-        default: printf("Sconosciuto"); break;
-    }
-    printf("\n");
 }
 
 void game_get_board_string(const game_state_t *game, char board_str[9]) {

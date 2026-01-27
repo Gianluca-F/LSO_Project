@@ -730,14 +730,9 @@ void handle_move_made_notification(const notify_move_made_t *notify) {
     
     pthread_mutex_unlock(&client_state.mutex);
     
-    // Converti posizione 1-9 in row, col
-    int pos = notify->pos - 1;
-    int row = pos / 3;
-    int col = pos % 3;
-    
     printf("\r \r");
-    printf("\n[MOSSA] %c ha giocato in posizione (%d, %d)\n", 
-           notify->symbol, row, col);
+    printf("\n[MOSSA] %s ha giocato in posizione < %d >\n", 
+           notify->player, notify->pos);
     
     game_print_board(&client_state.local_game_state);
     
@@ -745,7 +740,7 @@ void handle_move_made_notification(const notify_move_made_t *notify) {
     // Quindi dopo la sua mossa è SEMPRE il tuo turno
     printf("\nÈ il tuo turno! Usa 'move <pos>' per giocare (1-9).");
     
-    LOG_DEBUG("Mossa ricevuta: pos=%d symbol=%c", notify->pos, notify->symbol);
+    LOG_DEBUG("Mossa ricevuta: pos=%d player=%s", notify->pos, notify->player);
 }
 
 void handle_game_over_notification(const notify_game_end_t *notify) {

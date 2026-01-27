@@ -20,7 +20,7 @@
 // STATI DEL GIOCO
 // ============================================================================
 
-#define GAME_CREATED 0                  // Partita creata //NOTE: non usato
+#define GAME_CREATED 0                  // Partita creata
 #define GAME_WAITING 1                  // In attesa del secondo giocatore
 #define GAME_IN_PROGRESS 2              // Partita in corso
 #define GAME_FINISHED 3                 // Partita terminata
@@ -30,7 +30,7 @@
 // ============================================================================
 
 #define RESULT_NONE 0                   // Nessun risultato //NOTE: non usato
-#define RESULT_WIN 1                    // Vittoria
+#define RESULT_WIN  1                   // Vittoria
 #define RESULT_LOSE 2                   // Sconfitta
 #define RESULT_DRAW 3                   // Pareggio
 

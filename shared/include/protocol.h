@@ -295,9 +295,9 @@ typedef struct __attribute__((packed)) {
  */
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;    
-    uint8_t pos;            // 1-9
-    uint8_t symbol;         // 'X' o 'O'
-    char board[BOARD_SIZE]; // Stato aggiornato
+    uint8_t pos;                  // 1-9
+    char player[MAX_PLAYER_NAME];
+    char board[BOARD_SIZE];       // Stato aggiornato
 } notify_move_made_t;
 
 /**
