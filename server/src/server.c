@@ -9,7 +9,6 @@
 #include <stdbool.h>
 
 #define MAX_PORT_ATTEMPTS 10
-#define BUFFER_SIZE 1024
 
 // ============================================================================
 // STATO GLOBALE DEL SERVER
