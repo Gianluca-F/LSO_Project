@@ -24,10 +24,7 @@ typedef struct {
     client_status_t status;             // Stato corrente del client
     int game_index;                     // Indice in games[] (-1 se non in partita)
     int player_index;                   // 0 o 1 nella partita (quale giocatore è)
-
-    //NOTE: Potrebbero essere aggiunti altri campi in futuro
-    //uint32_t seq_id;                  // Sequence ID per messaggi
-    //pthread_t thread_id;              // ID del thread che gestisce questo client
+    uint32_t seq_id;                    // Sequence ID per notifiche spontanee del server
 } client_info_t;
 
 /**
@@ -214,22 +211,25 @@ void cleanup_game(game_session_t *game);
  * @param client_fd File descriptor del client
  * @param payload Puntatore a payload_register_t
  * @param length Lunghezza del payload in bytes
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_register(int client_fd, const void *payload, uint16_t length);
+void handle_register(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_CREATE_GAME - Creazione nuova partita
  * 
  * @param client_fd File descriptor del client creatore
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_create_game(int client_fd);
+void handle_create_game(int client_fd, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_LIST_GAMES - Lista partite disponibili
  * 
  * @param client_fd File descriptor del client richiedente
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_list_games(int client_fd);
+void handle_list_games(int client_fd, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_JOIN_GAME - Richiesta join a partita
@@ -237,8 +237,9 @@ void handle_list_games(int client_fd);
  * @param client_fd File descriptor del client che vuole joinare
  * @param payload Puntatore a payload_join_game_t
  * @param length Lunghezza del payload in bytes
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_join_game(int client_fd, const void *payload, uint16_t length);
+void handle_join_game(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_ACCEPT_JOIN - Accetta/rifiuta join
@@ -246,8 +247,9 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length);
  * @param client_fd File descriptor del creatore della partita
  * @param payload Puntatore a payload_accept_join_t
  * @param length Lunghezza del payload in bytes
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_accept_join(int client_fd, const void *payload, uint16_t length);
+void handle_accept_join(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_MAKE_MOVE - Esegui mossa
@@ -255,23 +257,26 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length);
  * @param client_fd File descriptor del giocatore
  * @param payload Puntatore a payload_make_move_t
  * @param length Lunghezza del payload in bytes
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_make_move(int client_fd, const void *payload, uint16_t length);
+void handle_make_move(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_LEAVE_GAME - Abbandona partita
  * 
  * @param client_fd File descriptor del giocatore che abbandona
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_leave_game(int client_fd);
+void handle_leave_game(int client_fd, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_QUIT - Disconnessione volontaria del client
  * Notifica avversario e invia risposta di conferma al client
  * 
  * @param client_fd File descriptor del client che vuole disconnettersi
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
-void handle_quit(int client_fd);
+void handle_quit(int client_fd, uint32_t req_seq_id);
 
 // ===========================================================================
 // HELPER PER GLI HANDLER
@@ -290,9 +295,10 @@ void send_join_cancellation_notify_to_original_creator(int joiner_fd);
  * 
  * @param client_fd File descriptor del client
  * @param error Codice di errore da inviare
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
  * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-void send_list_games_error(int client_fd, error_code_t error);
+void send_list_games_error(int client_fd, error_code_t error, uint32_t req_seq_id);
 
 /**
  * Pulisce lo stato di un join pendente per un client

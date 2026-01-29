@@ -236,37 +236,37 @@ void *handle_client(void *arg) {
         // Dispatch al handler appropriato
         switch (header.msg_type) {
             case MSG_REGISTER:
-                handle_register(client_fd, payload, header.length);
+                handle_register(client_fd, payload, header.length, header.seq_id);
                 break;
                 
             case MSG_CREATE_GAME:
-                handle_create_game(client_fd);
+                handle_create_game(client_fd, header.seq_id);
                 break;
                 
             case MSG_LIST_GAMES:
-                handle_list_games(client_fd);
+                handle_list_games(client_fd, header.seq_id);
                 break;
                 
             case MSG_JOIN_GAME:
-                handle_join_game(client_fd, payload, header.length);
+                handle_join_game(client_fd, payload, header.length, header.seq_id);
                 break;
                 
             case MSG_ACCEPT_JOIN:
-                handle_accept_join(client_fd, payload, header.length);
+                handle_accept_join(client_fd, payload, header.length, header.seq_id);
                 break;
                 
             case MSG_MAKE_MOVE:
-                handle_make_move(client_fd, payload, header.length);
+                handle_make_move(client_fd, payload, header.length, header.seq_id);
                 break;
                 
             case MSG_LEAVE_GAME:
-                handle_leave_game(client_fd);
+                handle_leave_game(client_fd, header.seq_id);
                 break;
 
             //NOTE: manca -> case MSG_NEW_GAME:
                 
             case MSG_QUIT:
-                handle_quit(client_fd);
+                handle_quit(client_fd, header.seq_id);
                 free(payload);
                 should_run = false; 
                 break;
@@ -374,6 +374,7 @@ int add_client(int fd) {
     server_state.clients[slot].status = CLIENT_CONNECTED;
     server_state.clients[slot].game_index = -1;
     server_state.clients[slot].player_index = -1;
+    server_state.clients[slot].seq_id = 0;
     
     server_state.num_clients++;
     
@@ -506,8 +507,8 @@ void cleanup_game(game_session_t *game) {
 // HANDLER MESSAGGI PROTOCOLLO
 // ============================================================================
 
-void handle_register(int client_fd, const void *payload, uint16_t length) {
-    LOG_DEBUG("handle_register chiamato per FD=%d", client_fd);
+void handle_register(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_register chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_register_t response;
     response.status = STATUS_ERROR;
@@ -520,7 +521,7 @@ void handle_register(int client_fd, const void *payload, uint16_t length) {
     if (client_idx == -1) {
         LOG_ERROR("Client FD=%d non trovato in handle_register", client_fd);
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -531,7 +532,7 @@ void handle_register(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Client FD=%d già registrato con nome '%s'", client_fd, client->name);
         response.error_code = ERR_ALREADY_REGISTERED;  
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -541,7 +542,7 @@ void handle_register(int client_fd, const void *payload, uint16_t length) {
                  length, sizeof(payload_register_t));
         response.error_code = ERR_INVALID_PAYLOAD;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -552,7 +553,7 @@ void handle_register(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Nome giocatore non valido: '%s'", reg->player_name);
         response.error_code = ERR_INVALID_NAME;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -561,7 +562,7 @@ void handle_register(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Nome '%s' già in uso", reg->player_name);
         response.error_code = ERR_NAME_TAKEN;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -577,11 +578,11 @@ void handle_register(int client_fd, const void *payload, uint16_t length) {
     // Invia risposta di successo
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
 }
 
-void handle_create_game(int client_fd) {
-    LOG_DEBUG("handle_create_game chiamato per FD=%d", client_fd);
+void handle_create_game(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_create_game chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_create_game_t response;
     response.status = STATUS_ERROR;
@@ -595,7 +596,7 @@ void handle_create_game(int client_fd) {
     if (client_idx == -1) {
         LOG_ERROR("Client FD=%d non trovato in handle_create_game", client_fd);
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -608,7 +609,7 @@ void handle_create_game(int client_fd) {
         response.error_code = (client->status == CLIENT_CONNECTED) ? 
                              ERR_NOT_REGISTERED : ERR_ALREADY_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -618,7 +619,7 @@ void handle_create_game(int client_fd) {
         LOG_ERROR("Impossibile creare partita per client FD=%d", client_fd);
         response.error_code = ERR_SERVER_FULL;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -649,7 +650,7 @@ void handle_create_game(int client_fd) {
     pthread_mutex_unlock(&server_state.mutex);
     
     // Invia risposta al creatore
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
     // Broadcast ai client registrati
     pthread_mutex_lock(&server_state.mutex);
@@ -659,8 +660,8 @@ void handle_create_game(int client_fd) {
     LOG_INFO("Broadcast GAME_CREATED inviato per partita '%s'", game->game_id);
 }
 
-void handle_list_games(int client_fd) {
-    LOG_DEBUG("handle_list_games chiamato da FD=%d", client_fd);
+void handle_list_games(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_list_games chiamato da FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     pthread_mutex_lock(&server_state.mutex);
 
@@ -669,7 +670,7 @@ void handle_list_games(int client_fd) {
     if (client_idx == -1) {
         LOG_ERROR("Client FD=%d non trovato in handle_list_games", client_fd);
         pthread_mutex_unlock(&server_state.mutex);
-        send_list_games_error(client_fd, ERR_INTERNAL);
+        send_list_games_error(client_fd, ERR_INTERNAL, req_seq_id);
         return;
     }
 
@@ -682,7 +683,7 @@ void handle_list_games(int client_fd) {
         error_code_t error = (client->status == CLIENT_CONNECTED) ? 
                              ERR_NOT_REGISTERED : ERR_ALREADY_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
-        send_list_games_error(client_fd, error);
+        send_list_games_error(client_fd, error, req_seq_id);
         return;
     }
 
@@ -701,7 +702,7 @@ void handle_list_games(int client_fd) {
     if (!response_buffer) {
         LOG_ERROR("Errore allocazione memoria per list_games");
         pthread_mutex_unlock(&server_state.mutex);
-        send_list_games_error(client_fd, ERR_INTERNAL);
+        send_list_games_error(client_fd, ERR_INTERNAL, req_seq_id);
         return;
     }
     
@@ -737,12 +738,12 @@ void handle_list_games(int client_fd) {
     pthread_mutex_unlock(&server_state.mutex);
     
     // Invia risposta
-    protocol_send(client_fd, MSG_RESPONSE, response_buffer, response_size, 0);
+    protocol_send(client_fd, MSG_RESPONSE, response_buffer, response_size, req_seq_id);
     free(response_buffer);
 }
 
-void handle_join_game(int client_fd, const void *payload, uint16_t length) {
-    LOG_DEBUG("handle_join_game chiamato per FD=%d", client_fd);
+void handle_join_game(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_join_game chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_join_game_t response;
     response.status = STATUS_ERROR;
@@ -759,7 +760,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Client FD=%d non trovato", client_fd);
         response.error_code = ERR_INTERNAL;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -771,7 +772,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
         response.error_code = (client->status == CLIENT_IN_GAME) ? 
                              ERR_ALREADY_IN_GAME : ERR_INTERNAL;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -779,7 +780,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
     if (length < sizeof(payload_join_game_t)) {
         LOG_ERROR("Payload MSG_JOIN_GAME invalido");
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -791,7 +792,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Partita '%s' non trovata", join_req->game_id);
         response.error_code = ERR_GAME_NOT_FOUND;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -802,7 +803,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Partita '%s' non in attesa (status=%d)", join_req->game_id, game->state.status);
         response.error_code = ERR_GAME_FULL;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
 
@@ -811,7 +812,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Partita '%s' ha già una richiesta pendente", join_req->game_id);
         response.error_code = ERR_PENDING_JOIN_EXISTS;  
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -836,7 +837,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
     
     pthread_mutex_unlock(&server_state.mutex);
     
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
     // Notifica al creatore
     pthread_mutex_lock(&server_state.mutex);
@@ -844,8 +845,8 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length) {
     pthread_mutex_unlock(&server_state.mutex);
 }
 
-void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
-    LOG_DEBUG("handle_accept_join chiamato per FD=%d", client_fd);
+void handle_accept_join(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_accept_join chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_accept_join_t response;
     response.status = STATUS_ERROR;
@@ -858,7 +859,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
     if (client_idx == -1) {
         LOG_WARN("Client FD=%d non trovato", client_fd);
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -869,7 +870,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Client FD=%d non in lobby", client_fd);
         response.error_code = ERR_NOT_IN_LOBBY;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -880,7 +881,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Nessuna richiesta di join pendente per partita '%s'", game->state.game_id);
         response.error_code = ERR_NO_PENDING_JOIN;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -888,7 +889,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
     if (length < sizeof(payload_accept_join_t)) {
         LOG_ERROR("Payload MSG_ACCEPT_JOIN invalido");
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -925,7 +926,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
             // Invia risposte
             response.status = STATUS_OK;
             response.error_code = ERR_NONE;
-            protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+            protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
             
             // Notifica al joiner: accettato
             pthread_mutex_lock(&server_state.mutex);
@@ -937,7 +938,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
         } else {
             LOG_ERROR("Errore aggiunta giocatore alla partita");
             pthread_mutex_unlock(&server_state.mutex);
-            protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+            protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         }
     } else {
         // RIFIUTA
@@ -956,7 +957,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
         // Invia risposte
         response.status = STATUS_OK;
         response.error_code = ERR_NONE;
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         
         // Notifica al joiner: rifiutato
         pthread_mutex_lock(&server_state.mutex);
@@ -965,8 +966,8 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length) {
     }
 }
 
-void handle_make_move(int client_fd, const void *payload, uint16_t length) {
-    LOG_DEBUG("handle_make_move chiamato per FD=%d", client_fd);
+void handle_make_move(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_make_move chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_make_move_t response;
     response.status = STATUS_ERROR;
@@ -980,7 +981,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Client FD=%d non trovato", client_fd);
         response.error_code = ERR_NOT_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -991,7 +992,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Client FD=%d non in partita", client_fd);
         response.error_code = ERR_NOT_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1001,7 +1002,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
     if (!game->active) {
         LOG_ERROR("Partita non attiva per client FD=%d", client_fd);
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1009,7 +1010,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
     if (length < sizeof(payload_make_move_t)) {
         LOG_ERROR("Payload MSG_MAKE_MOVE invalido");
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1020,7 +1021,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Posizione invalida: %d", move->pos);
         response.error_code = ERR_INVALID_MOVE;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1029,7 +1030,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Non è il turno di '%s'", client->name);
         response.error_code = ERR_NOT_YOUR_TURN;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1038,7 +1039,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
         LOG_WARN("Mossa non valida per '%s' pos=%d", client->name, move->pos);
         response.error_code = ERR_CELL_OCCUPIED;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1060,7 +1061,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
     pthread_mutex_unlock(&server_state.mutex);
     
     // Invia risposta al giocatore
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
     // Controlla se la partita è finita
     if (game_is_finished(&game->state)) {
@@ -1109,8 +1110,8 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length) {
 
 }
 
-void handle_leave_game(int client_fd) {
-    LOG_DEBUG("handle_leave_game chiamato per FD=%d", client_fd);
+void handle_leave_game(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_leave_game chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_leave_game_t response;
     response.status = STATUS_ERROR;
@@ -1124,7 +1125,7 @@ void handle_leave_game(int client_fd) {
         LOG_WARN("Client FD=%d non trovato", client_fd);
         response.error_code = ERR_NOT_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
 
@@ -1138,7 +1139,7 @@ void handle_leave_game(int client_fd) {
 
         response.status = STATUS_OK;
         response.error_code = ERR_NONE;
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
 
@@ -1147,7 +1148,7 @@ void handle_leave_game(int client_fd) {
         LOG_WARN("Client FD=%d non in partita", client_fd);
         response.error_code = ERR_NOT_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
 
@@ -1157,7 +1158,7 @@ void handle_leave_game(int client_fd) {
     if (!game->active) {
         LOG_ERROR("Partita non attiva");
         pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
     
@@ -1176,7 +1177,7 @@ void handle_leave_game(int client_fd) {
     // Invia risposta
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
     // Notifica avversario
     if (opponent_fd > 0) {
@@ -1187,8 +1188,8 @@ void handle_leave_game(int client_fd) {
     }
 }
 
-void handle_quit(int client_fd) {
-    LOG_DEBUG("handle_quit chiamato per FD=%d", client_fd);
+void handle_quit(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_quit chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_quit_t response;
     response.status = STATUS_OK;
@@ -1196,19 +1197,19 @@ void handle_quit(int client_fd) {
 
     handle_disconnect(client_fd);
 
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), 0);    
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);    
 }
 
 // ============================================================================
 // HELPER PER GLI HANDLER
 // ============================================================================
 
-void send_list_games_error(int client_fd, error_code_t error) {
+void send_list_games_error(int client_fd, error_code_t error, uint32_t req_seq_id) {
     response_list_games_t err_response;
     err_response.status = STATUS_ERROR;
     err_response.error_code = error;
     err_response.game_count = 0;
-    protocol_send(client_fd, MSG_RESPONSE, &err_response, sizeof(err_response), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &err_response, sizeof(err_response), req_seq_id);
 }
 
 void send_join_cancellation_notify_to_original_creator(int client_fd) {
