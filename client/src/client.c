@@ -47,6 +47,7 @@ int client_connect(const char *host, int port) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
     
+    // Converti indirizzo IP
     if (inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0) {
         LOG_ERROR("Indirizzo IP non valido: %s", host);
         close(sock);
@@ -61,6 +62,7 @@ int client_connect(const char *host, int port) {
         return -1;
     }
     
+    // Aggiorna stato client
     pthread_mutex_lock(&client_state.mutex);
     client_state.socket_fd = sock;
     client_state.state = CLIENT_CONNECTED;
@@ -371,107 +373,29 @@ void *notification_thread_func(void *arg) {
                     
                     switch (last_req) {
                         case MSG_REGISTER:
-                            pthread_mutex_lock(&client_state.mutex);
-                            client_state.state = CLIENT_REGISTERED;
-                            pthread_mutex_unlock(&client_state.mutex);
-                            printf("\n✅ Registrazione completata con successo!"
-                                   "\n   Ora puoi creare una partita con 'create' o vedere le partite con 'list'.");
-                            fflush(stdout);
+                            handle_response_register(payload);
                             break;
-                            
-                        case MSG_CREATE_GAME: {
-                            response_create_game_t *create_resp = (response_create_game_t *)payload;
-                            pthread_mutex_lock(&client_state.mutex);
-                            strncpy(client_state.current_game_id, create_resp->game_id, MAX_GAME_ID_LEN - 1);
-                            client_state.current_game_id[MAX_GAME_ID_LEN - 1] = '\0';
-                            client_state.state = CLIENT_IN_LOBBY;
-                            client_state.my_symbol = 'X';  // Il creatore è sempre X
-                            pthread_mutex_unlock(&client_state.mutex);
-                            printf("\n✅ Partita creata con successo!");
-                            fflush(stdout);
+                        case MSG_CREATE_GAME:
+                            handle_response_create_game(payload);
                             break;
-                        }
-                        
-                        case MSG_LIST_GAMES: {
-                            response_list_games_t *list_resp = (response_list_games_t *)payload;
-                            if (list_resp->game_count == 0) {
-                                printf("\n📋 Nessuna partita disponibile al momento..."
-                                       "\n   Puoi crearne una con 'create'.");
-                            } else {
-                                printf("\n📋 Partite disponibili: %d\n", list_resp->game_count);
-                                printf("─────────────────────────────────────────\n");
-                                
-                                // Lista partite (dopo i primi 4 byte ci sono i game_info_t)
-                                game_info_t *games = (game_info_t *)((uint8_t *)payload + 4);
-                                for (int i = 0; i < list_resp->game_count; i++) {
-                                    printf("  [%d] ID: %s | Creatore: %s | Giocatori: %d/2\n",
-                                           i + 1, games[i].game_id, games[i].creator, 
-                                           games[i].players_count);
-                                }
-                                printf("─────────────────────────────────────────\n");
-                                printf("Usa 'join <game_id>' per unirti a una partita.");
-                            }
-                            fflush(stdout);
+                        case MSG_LIST_GAMES:
+                            handle_response_list_games(payload);
                             break;
-                        }
-                        
-                        case MSG_JOIN_GAME: {
-                            response_join_game_t *join_resp = (response_join_game_t *)payload;
-                            pthread_mutex_lock(&client_state.mutex);
-                            strncpy(client_state.current_game_id, join_resp->game_id, MAX_GAME_ID_LEN - 1);
-                            client_state.current_game_id[MAX_GAME_ID_LEN - 1] = '\0';
-                            client_state.state = CLIENT_REQUESTING_JOIN;
-                            client_state.my_symbol = 'O';  // Il joiner è sempre O
-                            pthread_mutex_unlock(&client_state.mutex);
-                            
-                            printf("\n✅ Richiesta di join avvenuta! (Scrivere \"leave\" per abbandonare)"
-                                   "\n   In attesa che il creatore accetti la tua richiesta...");
-                            fflush(stdout);
-                            LOG_INFO("In attesa di accettazione per partita '%s'", join_resp->game_id);
+                        case MSG_JOIN_GAME:
+                            handle_response_join_game(payload);
                             break;
-                        }
-                        
                         case MSG_ACCEPT_JOIN:
-                            printf("\n✅ Risposta inviata al giocatore.");
-                            fflush(stdout);
+                            handle_response_accept_join(payload);
                             break;
-                        
                         case MSG_MAKE_MOVE:
-                            pthread_mutex_lock(&client_state.mutex);
-                            // Aggiorna la board locale SOLO se la mossa è stata accettata
-                            int board_idx = client_state.last_move_pos - 1;
-                            client_state.local_game_state.board[board_idx] = client_state.my_symbol;
-                            client_state.local_game_state.move_count++;
-                            client_state.local_game_state.current_player = 
-                                (client_state.local_game_state.current_player + 1) % 2;
-                            pthread_mutex_unlock(&client_state.mutex);
-
-                            printf("\n✅ Mossa accettata.\n\n");
-                            
-                            // Stampa la board aggiornata dopo la tua mossa
-                            pthread_mutex_lock(&client_state.mutex);
-                            game_print_board(&client_state.local_game_state);
-                            pthread_mutex_unlock(&client_state.mutex);
-                            
-                            printf("\nIn attesa della mossa dell'avversario...");
-                            fflush(stdout);
+                            handle_response_make_move(payload);
                             break;
-                        
                         case MSG_LEAVE_GAME:
-                            pthread_mutex_lock(&client_state.mutex);
-                            client_state.state = CLIENT_REGISTERED;
-                            client_state.current_game_id[0] = '\0';
-                            pthread_mutex_unlock(&client_state.mutex);
-                            printf("\n✅ Hai abbandonato la partita."
-                                   "\n   Sei tornato al menu principale.");
-                            fflush(stdout);
+                            handle_response_leave_game(payload);
                             break;
-                        
                         case MSG_QUIT:
-                            printf("\n✅ Disconnessione confermata.");
-                            fflush(stdout);
+                            handle_response_quit(payload);
                             break;
-                        
                         default:
                             printf("\n✅ Operazione completata.");
                             fflush(stdout);
@@ -480,79 +404,7 @@ void *notification_thread_func(void *arg) {
                 } else {
                     LOG_WARN("Ricevuta risposta ERROR: %d (seq=%u)", 
                             error_code, header.seq_id);
-                    
-                    // Stampa errore leggibile
-                    printf("\n❌ Errore: ");
-                    switch (error_code) {
-                        case ERR_GAME_NOT_FOUND:
-                            printf("Partita non trovata.");
-                            break;
-                        case ERR_GAME_FULL:
-                            printf("Partita piena.");
-                            break;
-                        case ERR_REQUEST_PENDING:
-                            printf("Richiesta di join già in sospeso.");
-                            break;
-                        case ERR_NO_PENDING_JOIN:
-                            printf("Nessuna richiesta di join in sospeso.");
-                            break;
-                        case ERR_PENDING_JOIN_EXISTS:
-                            printf("La partita ha già una richiesta di join in sospeso.");
-                            break;
-                        case ERR_NOT_IN_LOBBY:
-                            printf("Non sei in una lobby.");
-                            break;
-                        case ERR_ALREADY_IN_GAME:
-                            printf("Sei già in una partita.");
-                            break;
-                        case ERR_NOT_IN_GAME:
-                            printf("Non sei in una partita.");
-                            break;
-                        case ERR_NOT_YOUR_TURN:
-                            printf("Non è il tuo turno.");
-                            break;
-                        case ERR_INVALID_MOVE:
-                            printf("Mossa non valida. Assicurati che la mossa\n"
-                                   "   sia un numero intero valido tra 1 e 9.");
-                            break;
-                        case ERR_CELL_OCCUPIED:
-                            printf("Cella già occupata.");
-                            break;
-                        case ERR_NOT_REGISTERED:
-                            printf("Non sei registrato.");
-                            break;
-                        case ERR_ALREADY_REGISTERED:
-                            printf("Sei già registrato.");
-                            break;
-                        case ERR_INVALID_NAME:
-                            printf("Nome utente non valido. Usa solo lettere,\n"
-                                   "   numeri e underscore (max 32 caratteri).");
-                            break;
-                        case ERR_NAME_TAKEN:
-                            printf("Nome utente già in uso.");
-                            break;
-                        case ERR_SERVER_FULL:
-                            // Cancella la riga corrente
-                            printf("\r\033[K");
-
-                            // Cancella la riga precedente (una riga sopra)
-                            printf("\033[A\033[2K");
-
-                            printf("❌ Errore: Server pieno. Impossibile connettersi.\n");
-                            printf("   Premere un tasto per uscire...");
-                            fflush(stdout);
-                            pthread_mutex_lock(&client_state.mutex);
-                            client_state.running = false;  // Ferma il thread
-                            pthread_mutex_unlock(&client_state.mutex);
-                            break;
-                        case ERR_INVALID_PAYLOAD:
-                            printf("Payload non valido.");
-                            break;
-                        default: // ERR_INTERNAL o sconosciuto
-                            printf("Errore del server (%d).", error_code);
-                            break;
-                    }
-                    fflush(stdout);
+                    handle_response_error(error_code);
                 }
             }
         }
@@ -618,6 +470,198 @@ void *notification_thread_func(void *arg) {
 }
 
 // ============================================================================
+// GESTORI DELLE RISPOSTE
+// ============================================================================
+
+void handle_response_register(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.state = CLIENT_REGISTERED;
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    printf("\n✅ Registrazione completata con successo!"
+           "\n   Ora puoi creare una partita con 'create' o vedere le partite con 'list'.");
+    fflush(stdout);
+}
+
+void handle_response_create_game(const void *payload) {
+    const response_create_game_t *resp = (const response_create_game_t *)payload;
+    
+    pthread_mutex_lock(&client_state.mutex);
+    strncpy(client_state.current_game_id, resp->game_id, MAX_GAME_ID_LEN - 1);
+    client_state.current_game_id[MAX_GAME_ID_LEN - 1] = '\0';
+    client_state.state = CLIENT_IN_LOBBY;
+    client_state.my_symbol = FIRST_PLAYER_SYMBOL;
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    printf("\n✅ Partita creata con successo!");
+    fflush(stdout);
+}
+
+void handle_response_list_games(const void *payload) {
+    const response_list_games_t *resp = (const response_list_games_t *)payload;
+    
+    if (resp->game_count == 0) {
+        printf("\n📋 Nessuna partita disponibile al momento..."
+               "\n   Puoi crearne una con 'create'.");
+    } else {
+        printf("\n📋 Partite disponibili: %d\n", resp->game_count);
+        printf("─────────────────────────────────────────\n");
+        
+        // Lista partite (dopo i primi 4 byte ci sono i game_info_t)
+        const game_info_t *games = (const game_info_t *)((const uint8_t *)payload + 4);
+        for (int i = 0; i < resp->game_count; i++) {
+            printf("  [%d] ID: %s | Creatore: %s | Giocatori: %d/2\n",
+                   i + 1, games[i].game_id, games[i].creator, 
+                   games[i].players_count);
+        }
+        printf("─────────────────────────────────────────\n");
+        printf("Usa 'join <game_id>' per unirti a una partita.");
+    }
+    fflush(stdout);
+}
+
+void handle_response_join_game(const void *payload) {
+    const response_join_game_t *resp = (const response_join_game_t *)payload;
+    
+    pthread_mutex_lock(&client_state.mutex);
+    strncpy(client_state.current_game_id, resp->game_id, MAX_GAME_ID_LEN - 1);
+    client_state.current_game_id[MAX_GAME_ID_LEN - 1] = '\0';
+    client_state.state = CLIENT_REQUESTING_JOIN;
+    client_state.my_symbol = SECOND_PLAYER_SYMBOL;
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    printf("\n✅ Richiesta di join avvenuta! (Scrivere \"leave\" per abbandonare)"
+           "\n   In attesa che il creatore accetti la tua richiesta...");
+    fflush(stdout);
+    LOG_INFO("In attesa di accettazione per partita '%s'", resp->game_id);
+}
+
+void handle_response_accept_join(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    
+    printf("\n✅ Risposta inviata al giocatore.");
+    fflush(stdout);
+}
+
+void handle_response_make_move(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    
+    pthread_mutex_lock(&client_state.mutex);
+    // Aggiorna la board locale SOLO se la mossa è stata accettata
+    int board_idx = client_state.last_move_pos - 1;
+    client_state.local_game_state.board[board_idx] = client_state.my_symbol;
+    client_state.local_game_state.move_count++;
+    client_state.local_game_state.current_player = 
+        (client_state.local_game_state.current_player + 1) % 2;
+    pthread_mutex_unlock(&client_state.mutex);
+
+    printf("\n✅ Mossa accettata.\n\n");
+    
+    // Stampa la board aggiornata dopo la tua mossa
+    pthread_mutex_lock(&client_state.mutex);
+    game_print_board(&client_state.local_game_state);
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    printf("\nIn attesa della mossa dell'avversario...");
+    fflush(stdout);
+}
+
+void handle_response_leave_game(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.state = CLIENT_REGISTERED;
+    client_state.current_game_id[0] = '\0';
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    printf("\n✅ Hai abbandonato la partita."
+           "\n   Sei tornato al menu principale.");
+    fflush(stdout);
+}
+
+void handle_response_quit(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    
+    printf("\n✅ Disconnessione confermata. Arrivederci!");
+    fflush(stdout);
+}
+
+void handle_response_error(uint8_t error_code) {
+    printf("\n❌ Errore: ");
+    
+    switch (error_code) {
+        case ERR_GAME_NOT_FOUND:
+            printf("Partita non trovata.");
+            break;
+        case ERR_GAME_FULL:
+            printf("Partita piena.");
+            break;
+        case ERR_REQUEST_PENDING:
+            printf("Richiesta di join già in sospeso.");
+            break;
+        case ERR_NO_PENDING_JOIN:
+            printf("Nessuna richiesta di join in sospeso.");
+            break;
+        case ERR_PENDING_JOIN_EXISTS:
+            printf("La partita ha già una richiesta di join in sospeso.");
+            break;
+        case ERR_NOT_IN_LOBBY:
+            printf("Non sei in una lobby.");
+            break;
+        case ERR_ALREADY_IN_GAME:
+            printf("Sei già in una partita.");
+            break;
+        case ERR_NOT_IN_GAME:
+            printf("Non sei in una partita.");
+            break;
+        case ERR_NOT_YOUR_TURN:
+            printf("Non è il tuo turno.");
+            break;
+        case ERR_INVALID_MOVE:
+            printf("Mossa non valida. Assicurati che la mossa\n"
+                   "   sia un numero intero valido tra 1 e 9.");
+            break;
+        case ERR_CELL_OCCUPIED:
+            printf("Cella già occupata.");
+            break;
+        case ERR_NOT_REGISTERED:
+            printf("Non sei registrato.");
+            break;
+        case ERR_ALREADY_REGISTERED:
+            printf("Sei già registrato.");
+            break;
+        case ERR_INVALID_NAME:
+            printf("Nome utente non valido. Usa solo lettere,\n"
+                   "   numeri e underscore (max 32 caratteri).");
+            break;
+        case ERR_NAME_TAKEN:
+            printf("Nome utente già in uso.");
+            break;
+        case ERR_SERVER_FULL:
+            // Cancella la riga corrente
+            printf("\r\033[K");
+            // Cancella la riga precedente (una riga sopra)
+            printf("\033[A\033[2K");
+            printf("❌ Errore: Server pieno. Impossibile connettersi.\n");
+            printf("   Premere un tasto per uscire...");
+            fflush(stdout);
+            pthread_mutex_lock(&client_state.mutex);
+            client_state.running = false;  // Ferma il thread
+            pthread_mutex_unlock(&client_state.mutex);
+            return;  // Evita il fflush finale
+        case ERR_INVALID_PAYLOAD:
+            printf("Payload non valido.");
+            break;
+        default:  // ERR_INTERNAL o sconosciuto
+            printf("Errore del server (%d).", error_code);
+            break;
+    }
+    fflush(stdout);
+}
+
+// ============================================================================
 // GESTORI DELLE NOTIFICHE
 // ============================================================================
 
@@ -628,11 +672,6 @@ void handle_game_created_notification(const notify_game_created_t *notify) {
 }
 
 void handle_join_request_notification(const notify_join_request_t *notify) {
-    pthread_mutex_lock(&client_state.mutex);
-    // Il creatore rimane IN_LOBBY, riceve notifica ma mantiene lo stato
-    // Lo stato cambierà a IN_GAME solo quando accetta e riceve GAME_START
-    pthread_mutex_unlock(&client_state.mutex);
-    
     printf("[NOTIFICA] %s vuole unirsi alla tua partita! <\n", notify->opponent);
     printf("Accetti? Invia il comando 'accept' per accettare o 'reject' per rifiutare.");
     fflush(stdout);
@@ -677,7 +716,7 @@ void handle_game_start_notification(const notify_game_start_t *notify) {
     strcpy(client_state.local_game_state.game_id, client_state.current_game_id);
     
     // Imposta i giocatori
-    if (client_state.my_symbol == 'X') {
+    if (client_state.my_symbol == FIRST_PLAYER_SYMBOL) {
         strcpy(client_state.local_game_state.players[0], client_state.username);
         strcpy(client_state.local_game_state.players[1], notify->opponent);
     } else {
@@ -690,7 +729,7 @@ void handle_game_start_notification(const notify_game_start_t *notify) {
         client_state.local_game_state.board[i] = '_';
     }
     
-    client_state.local_game_state.current_player = 0;  // X inizia
+    client_state.local_game_state.current_player = 0; 
     client_state.local_game_state.status = GAME_IN_PROGRESS;
     client_state.local_game_state.winner = -1;
     
@@ -755,7 +794,7 @@ void handle_game_over_notification(const notify_game_end_t *notify) {
     char old_game_id[MAX_GAME_ID_LEN];
     strcpy(old_game_id, client_state.current_game_id);
     client_state.current_game_id[0] = '\0';
-    
+    //NOTE: Impostare il caso di NEW_GAME se la partita è finita in pareggio
     pthread_mutex_unlock(&client_state.mutex);
     
     printf("\r \r");
@@ -1045,6 +1084,4 @@ void client_run(void) {
             printf("\n> ");
         }
     }
-    
-    printf("Arrivederci!\n");
 }

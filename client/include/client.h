@@ -147,6 +147,73 @@ int send_quit_request(void);
 void *notification_thread_func(void *arg);
 
 // ============================================================================
+// GESTORI DELLE RISPOSTE
+// ============================================================================
+
+/**
+ * Gestisce risposta OK generica (stampa messaggio di successo)
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_register(const void *payload);
+
+/**
+ * Gestisce risposta alla creazione partita
+ * 
+ * @param payload Puntatore al payload response_create_game_t
+ */
+void handle_response_create_game(const void *payload);
+
+/**
+ * Gestisce risposta alla lista partite
+ * 
+ * @param payload Puntatore al payload response_list_games_t
+ */
+void handle_response_list_games(const void *payload);
+
+/**
+ * Gestisce risposta al join partita
+ * 
+ * @param payload Puntatore al payload response_join_game_t
+ */
+void handle_response_join_game(const void *payload);
+
+/**
+ * Gestisce risposta all'accettazione/rifiuto join
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_accept_join(const void *payload);
+
+/**
+ * Gestisce risposta alla mossa effettuata
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_make_move(const void *payload);
+
+/**
+ * Gestisce risposta all'abbandono partita
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_leave_game(const void *payload);
+
+/**
+ * Gestisce risposta alla richiesta di quit
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_quit(const void *payload);
+
+/**
+ * Gestisce errore ricevuto dal server
+ * 
+ * @param error_code Codice di errore ricevuto
+ */
+void handle_response_error(uint8_t error_code);
+
+// ============================================================================
 // GESTORI DELLE NOTIFICHE
 // ============================================================================
 
