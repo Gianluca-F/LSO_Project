@@ -152,8 +152,7 @@ int game_is_player_turn(const game_state_t *game, const char *player_name) {
 char game_get_player_symbol(const game_state_t *game, int player_idx) {
     if (!game || player_idx < 0 || player_idx > 1) return '\0';
     
-    // Il giocatore 0 (creatore) è sempre 'X', il giocatore 1 è sempre 'O'
-    return (player_idx == 0) ? PLAYER_X : PLAYER_O;
+    return (player_idx == 0) ? FIRST_PLAYER_SYMBOL : SECOND_PLAYER_SYMBOL;
 }
 
 void game_print_board(const game_state_t *game) {
@@ -180,9 +179,9 @@ void game_print_board(const game_state_t *game) {
     printf(" ===\n");
     printf("Giocatori: %s (%s%s%c%s) vs %s (%s%s%c%s)\n", 
            game->players[0], 
-           COLOR_RED, BOLD, PLAYER_X, RESET,
+           COLOR_RED, BOLD, FIRST_PLAYER_SYMBOL, RESET,
            game->players[1][0] ? game->players[1] : "[In attesa]",
-           COLOR_BLUE, BOLD, PLAYER_O, RESET);
+           COLOR_BLUE, BOLD, SECOND_PLAYER_SYMBOL, RESET);
     printf("Turno di: %s\n", 
            game->status == GAME_IN_PROGRESS ? game->players[game->current_player] : "Nessuno");
     
@@ -192,9 +191,9 @@ void game_print_board(const game_state_t *game) {
             int idx = row * 3 + col;
             char cell = game->board[idx];
             
-            if (cell == PLAYER_X) {
+            if (cell == FIRST_PLAYER_SYMBOL) {
                 printf(" %s%s%c%s ", COLOR_RED, BOLD, cell, RESET);
-            } else if (cell == PLAYER_O) {
+            } else if (cell == SECOND_PLAYER_SYMBOL) {
                 printf(" %s%s%c%s ", COLOR_BLUE, BOLD, cell, RESET);
             } else {
                 printf("(%d)", idx + 1);  // Cella vuota normale

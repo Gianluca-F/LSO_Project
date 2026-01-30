@@ -748,7 +748,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length, uint3
     response_join_game_t response;
     response.status = STATUS_ERROR;
     response.error_code = ERR_INTERNAL;
-    response.your_symbol = 'O';
+    response.your_symbol = SECOND_PLAYER_SYMBOL;
     response.opponent[0] = '\0';
     response.game_id[0] = '\0';
     
@@ -1335,7 +1335,7 @@ void notify_game_start(game_session_t *game) {
         notify_game_start_t notify;
         notify.notify_type = NOTIFY_GAME_START;
         notify.your_symbol = game_get_player_symbol(&game->state, i);
-        notify.first_player = PLAYER_X;  // X inizia sempre
+        notify.first_player = FIRST_PLAYER_SYMBOL; 
         
         // Imposta il nome dell'avversario
         int opponent_idx = 1 - i;

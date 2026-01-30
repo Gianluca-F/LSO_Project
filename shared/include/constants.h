@@ -38,8 +38,8 @@
 // SIMBOLI GIOCATORI
 // ============================================================================
 
-#define PLAYER_X 'X'                    // Primo giocatore
-#define PLAYER_O 'O'                    // Secondo giocatore
+#define FIRST_PLAYER_SYMBOL  'X'        // Primo giocatore
+#define SECOND_PLAYER_SYMBOL 'O'        // Secondo giocatore
 #define EMPTY_CELL ' '                  // Cella vuota
 
 // ============================================================================
