@@ -264,10 +264,11 @@ typedef struct __attribute__((packed)) {
 
 
 /**
- * NOTIFY_JOIN_CANCELLATION: Il joiner ha annullato la richiesta di join
+ * NOTIFY_JOIN_CANCELLATION: Qualcuno ha annullato la richiesta di join
  */
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;    
+    uint8_t is_cancelled_by_joiner; // 1 = joiner, 0 = creatore (in caso di quit)
     char opponent[MAX_PLAYER_NAME];
 } notify_join_cancellation_t;
 

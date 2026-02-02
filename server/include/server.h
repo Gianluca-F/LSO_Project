@@ -312,6 +312,20 @@ void send_list_games_error(int client_fd, error_code_t error, uint32_t req_seq_i
 void cleanup_pending_join(int client_fd);
 
 /**
+ * Gestisce la rimozione di un client da una partita/lobby/richiesta join
+ * 
+ * Funzione helper centralizzata che gestisce tutti i casi di uscita
+ * del client da uno stato di gioco (REQUESTING_JOIN, IN_LOBBY, IN_GAME).
+ * Invia le notifiche appropriate agli altri client coinvolti e fa cleanup
+ * della partita. Resetta sempre il client a CLIENT_REGISTERED.
+ * 
+ * @param client_fd File descriptor del client da rimuovere dal game state
+ * @return File descriptor dell'avversario se era in partita attiva, altrimenti -1
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
+ */
+int cleanup_client_from_game_state(int client_fd);
+
+/**
  * Cleanup comune alla disconnessione di un client
  * 
  * Notifica l'avversario se il client era in partita,

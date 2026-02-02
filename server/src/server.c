@@ -498,6 +498,7 @@ void cleanup_game(game_session_t *game) {
     // Marca la partita come non attiva
     game->active = 0;
     game->pending_join_fd = -1;
+    game->pending_join_name[0] = '\0';
     server_state.num_games--;
     
     LOG_INFO("Partita pulita, totale partite rimanenti=%d", server_state.num_games);
@@ -1131,55 +1132,32 @@ void handle_leave_game(int client_fd, uint32_t req_seq_id) {
 
     client_info_t *client = &server_state.clients[client_idx];
 
-    if (client->status == CLIENT_REQUESTING_JOIN) {
-        send_join_cancellation_notify_to_original_creator(client_fd);        
-        cleanup_pending_join(client_fd);
-        client->status = CLIENT_REGISTERED;
-        pthread_mutex_unlock(&server_state.mutex);
-
-        response.status = STATUS_OK;
-        response.error_code = ERR_NONE;
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
-        return;
-    }
-
-    // Deve essere in partita o in lobby, se non stava richiedendo join
-    if (client->status != CLIENT_IN_GAME && client->status != CLIENT_IN_LOBBY) {
-        LOG_WARN("Client FD=%d non in partita", client_fd);
+    // Deve essere in partita, in lobby o richiedendo join
+    if (client->status != CLIENT_IN_GAME && 
+        client->status != CLIENT_IN_LOBBY && 
+        client->status != CLIENT_REQUESTING_JOIN) {
+        LOG_WARN("Client FD=%d non in partita/lobby/requesting (status=%d)", 
+                 client_fd, client->status);
         response.error_code = ERR_NOT_IN_GAME;
         pthread_mutex_unlock(&server_state.mutex);
         protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         return;
     }
-
-    game_session_t *game = &server_state.games[client->game_index];
-
-    // Controlla se la partita è attiva
-    if (!game->active) {
-        LOG_ERROR("Partita non attiva");
-        pthread_mutex_unlock(&server_state.mutex);
-        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
-        return;
-    }
     
-    LOG_INFO("Client '%s' (FD=%d) abbandona partita '%s'", 
-             client->name, client_fd, game->state.game_id);
+    LOG_INFO("Client '%s' (FD=%d) lascia volontariamente (status=%d)", 
+             client->name, client_fd, client->status);
     
-    // Trova avversario
-    int opponent_idx = 1 - client->player_index;
-    int opponent_fd = game->player_fds[opponent_idx];
-    
-    // Pulisci la partita (cleanup_game resetta anche l'avversario a REGISTERED)
-    cleanup_game(game);
+    // Usa la funzione helper per cleanup (ritorna opponent_fd se presente)
+    int opponent_fd = cleanup_client_from_game_state(client_fd);
     
     pthread_mutex_unlock(&server_state.mutex);
     
-    // Invia risposta
+    // Invia risposta di successo
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
-    // Notifica avversario
+    // Se c'era un avversario in partita, notificalo
     if (opponent_fd > 0) {
         notify_opponent_left_t notify;
         notify.notify_type = NOTIFY_OPPONENT_LEFT;
@@ -1195,9 +1173,21 @@ void handle_quit(int client_fd, uint32_t req_seq_id) {
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
 
-    handle_disconnect(client_fd);
+    // Cleanup dal game state (se presente)
+    pthread_mutex_lock(&server_state.mutex);
+    int opponent_fd = cleanup_client_from_game_state(client_fd);
+    pthread_mutex_unlock(&server_state.mutex);
 
-    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);    
+    // Invia risposta al client che sta quittando
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+    
+    // Notifica l'avversario se c'era una partita attiva
+    if (opponent_fd > 0) {
+        notify_opponent_left_t notify;
+        notify.notify_type = NOTIFY_OPPONENT_LEFT;
+        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_INFO("OPPONENT_LEFT inviato a FD=%d (client in quit)", opponent_fd);
+    }
 }
 
 // ============================================================================
@@ -1221,6 +1211,7 @@ void send_join_cancellation_notify_to_original_creator(int client_fd) {
 
             notify_join_cancellation_t notify;
             notify.notify_type = NOTIFY_JOIN_CANCELLATION;
+            notify.is_cancelled_by_joiner = 1;
             strncpy(notify.opponent, joiner->name, MAX_PLAYER_NAME - 1);
             notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
             
@@ -1243,45 +1234,93 @@ void cleanup_pending_join(int client_fd) {
     }
 }
 
+int cleanup_client_from_game_state(int client_fd) {
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx == -1) {
+        LOG_WARN("cleanup_client_from_game_state: Client FD=%d non trovato", client_fd);
+        return -1;
+    }
+    
+    client_info_t *client = &server_state.clients[client_idx];
+    
+    // Caso 1: Client in attesa di risposta
+    if (client->status == CLIENT_REQUESTING_JOIN) {    
+        send_join_cancellation_notify_to_original_creator(client_fd); 
+        cleanup_pending_join(client_fd);
+        client->status = CLIENT_REGISTERED;
+
+        LOG_INFO("Client '%s' (FD=%d) rimosso da richiesta join pendente",
+                 client->name, client_fd);
+    }
+    // Caso 2: Client in lobby (creatore in attesa)
+    else if (client->status == CLIENT_IN_LOBBY) {
+        game_session_t *game = &server_state.games[client->game_index];
+        
+        if (!game->active) {
+            LOG_ERROR("Partita non attiva per client FD=%d", client_fd);
+            client->status = CLIENT_REGISTERED;
+            return -1;
+        }
+        // Notifica al joiner pendente che il creatore ha lasciato/disconnesso
+        if (game->pending_join_fd > 0) {
+            notify_join_cancellation_t notify;
+            notify.notify_type = NOTIFY_JOIN_CANCELLATION;
+            notify.is_cancelled_by_joiner = 0;
+            strncpy(notify.opponent, client->name, MAX_PLAYER_NAME - 1);
+            notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
+            
+            client_info_t *joiner = &server_state.clients[find_client_by_fd(game->pending_join_fd)];
+            joiner->status = CLIENT_REGISTERED; // Reset stato joiner
+
+            protocol_send(game->pending_join_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+            
+            LOG_INFO("Notifica JOIN_CANCELLATION inviata a FD=%d (creatore '%s' ha lasciato)",
+                        game->pending_join_fd, client->name);
+        }
+        
+        cleanup_game(game);
+        LOG_INFO("Client '%s' (FD=%d) rimosso da lobby", client->name, client_fd);
+    }
+    // Caso 3: Client in partita attiva (IN_GAME)
+    else if (client->status == CLIENT_IN_GAME) {
+        game_session_t *game = &server_state.games[client->game_index];
+        
+        if (!game->active) {
+            LOG_ERROR("Partita non attiva per client FD=%d", client_fd);
+            client->status = CLIENT_REGISTERED;
+            return -1;
+        }
+        // Trova l'avversario prima del cleanup
+        int opponent_idx = 1 - client->player_index;
+        int opponent_fd = game->player_fds[opponent_idx];
+        
+        // Cleanup della partita (resetta anche l'avversario a REGISTERED)
+        cleanup_game(game);
+        
+        LOG_INFO("Client '%s' (FD=%d) rimosso da partita attiva, opponent_fd=%d",
+                    client->name, client_fd, opponent_fd);
+
+        return opponent_fd;
+    }
+
+    return -1;  // Nessun client da notificare
+}
+
 void handle_disconnect(int client_fd) {
     pthread_mutex_lock(&server_state.mutex);
     
-    // Trova il client
-    int client_idx = find_client_by_fd(client_fd);
-    if (client_idx != -1) {
-        client_info_t *client = &server_state.clients[client_idx];
-        
-        if (client->status == CLIENT_REQUESTING_JOIN)
-        {
-            send_join_cancellation_notify_to_original_creator(client_fd);        
-            cleanup_pending_join(client_fd);
-            LOG_INFO("Client '%s' (FD=%d) disconnesso durante richiesta join, notifica inviata",
-                     client->name, client_fd);
-        }
-        else if (client->status == CLIENT_IN_GAME) {
-            game_session_t *game = &server_state.games[client->game_index];
-            
-            if (game->active) {
-                // Trova l'avversario
-                int opponent_idx = 1 - client->player_index;
-                int opponent_fd = game->player_fds[opponent_idx];
-                
-                // Notifica l'avversario che il giocatore ha abbandonato
-                if (opponent_fd > 0) {
-                    notify_opponent_left_t notify;
-                    notify.notify_type = NOTIFY_OPPONENT_LEFT;
-                    protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-                    
-                    LOG_INFO("Notifica OPPONENT_LEFT inviata a FD=%d (client '%s' disconnesso)",
-                             opponent_fd, client->name);
-                }
-
-                cleanup_game(game);
-            }
-        }
-    }
-
+    // Usa la funzione helper per cleanup e ottieni l'opponent_fd se presente
+    int opponent_fd = cleanup_client_from_game_state(client_fd);
+    
     pthread_mutex_unlock(&server_state.mutex);
+    
+    // Notifica l'avversario se c'era una partita attiva
+    if (opponent_fd > 0) {
+        notify_opponent_left_t notify;
+        notify.notify_type = NOTIFY_OPPONENT_LEFT;
+        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_INFO("OPPONENT_LEFT inviato a FD=%d (client disconnesso)", opponent_fd);
+    }
 }
 
 // ============================================================================

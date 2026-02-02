@@ -66,6 +66,7 @@ int client_connect(const char *host, int port) {
     pthread_mutex_lock(&client_state.mutex);
     client_state.socket_fd = sock;
     client_state.state = CLIENT_CONNECTED;
+    client_state.running = true;
     pthread_mutex_unlock(&client_state.mutex);
     
     LOG_INFO("Connesso al server %s:%d (fd=%d)", host, port, sock);
@@ -359,53 +360,50 @@ void *notification_thread_func(void *arg) {
         if (header.msg_type == MSG_RESPONSE) {
             // Risposta sincrona a una richiesta
             // Tutte le risposte hanno status ed error_code come primi due byte
-            if (payload && header.length >= 2) {
-                uint8_t status = ((uint8_t *)payload)[0];
-                uint8_t error_code = ((uint8_t *)payload)[1];
+            uint8_t status = ((uint8_t *)payload)[0];
+            uint8_t error_code = ((uint8_t *)payload)[1];
+            
+            if (status == STATUS_OK) {
+                LOG_DEBUG("Ricevuta risposta OK (seq=%u)", header.seq_id);
                 
-                if (status == STATUS_OK) {
-                    LOG_DEBUG("Ricevuta risposta OK (seq=%u)", header.seq_id);
-                    
-                    // Gestisci in base al tipo di richiesta inviata
-                    pthread_mutex_lock(&client_state.mutex);
-                    uint8_t last_req = client_state.last_request_type;
-                    pthread_mutex_unlock(&client_state.mutex);
-                    
-                    switch (last_req) {
-                        case MSG_REGISTER:
-                            handle_response_register(payload);
-                            break;
-                        case MSG_CREATE_GAME:
-                            handle_response_create_game(payload);
-                            break;
-                        case MSG_LIST_GAMES:
-                            handle_response_list_games(payload);
-                            break;
-                        case MSG_JOIN_GAME:
-                            handle_response_join_game(payload);
-                            break;
-                        case MSG_ACCEPT_JOIN:
-                            handle_response_accept_join(payload);
-                            break;
-                        case MSG_MAKE_MOVE:
-                            handle_response_make_move(payload);
-                            break;
-                        case MSG_LEAVE_GAME:
-                            handle_response_leave_game(payload);
-                            break;
-                        case MSG_QUIT:
-                            handle_response_quit(payload);
-                            break;
-                        default:
-                            printf("\n✅ Operazione completata.");
-                            fflush(stdout);
-                            break;
-                    }
-                } else {
-                    LOG_WARN("Ricevuta risposta ERROR: %d (seq=%u)", 
-                            error_code, header.seq_id);
-                    handle_response_error(error_code);
+                // Gestisci in base al tipo di richiesta inviata
+                pthread_mutex_lock(&client_state.mutex);
+                uint8_t last_req = client_state.last_request_type;
+                pthread_mutex_unlock(&client_state.mutex);
+                
+                switch (last_req) {
+                    case MSG_REGISTER:
+                        handle_response_register(payload);
+                        break;
+                    case MSG_CREATE_GAME:
+                        handle_response_create_game(payload);
+                        break;
+                    case MSG_LIST_GAMES:
+                        handle_response_list_games(payload);
+                        break;
+                    case MSG_JOIN_GAME:
+                        handle_response_join_game(payload);
+                        break;
+                    case MSG_ACCEPT_JOIN:
+                        handle_response_accept_join(payload);
+                        break;
+                    case MSG_MAKE_MOVE:
+                        handle_response_make_move(payload);
+                        break;
+                    case MSG_LEAVE_GAME:
+                        handle_response_leave_game(payload);
+                        break;
+                    case MSG_QUIT:
+                        handle_response_quit(payload);
+                        break;
+                    default:
+                        printf("\n✅ Operazione completata.");
+                        fflush(stdout);
+                        break;
                 }
+            } else {
+                LOG_WARN("Ricevuta risposta ERROR: %d (seq=%u)", error_code, header.seq_id);
+                handle_response_error(error_code);
             }
         }
         else if (header.msg_type == MSG_NOTIFY) {
@@ -507,16 +505,16 @@ void handle_response_list_games(const void *payload) {
                "\n   Puoi crearne una con 'create'.");
     } else {
         printf("\n📋 Partite disponibili: %d\n", resp->game_count);
-        printf("─────────────────────────────────────────\n");
+        printf("──────────────────────────────────────────────────────────────\n");
         
         // Lista partite (dopo i primi 4 byte ci sono i game_info_t)
         const game_info_t *games = (const game_info_t *)((const uint8_t *)payload + 4);
         for (int i = 0; i < resp->game_count; i++) {
-            printf("  [%d] ID: %s | Creatore: %s | Giocatori: %d/2\n",
+            printf("  [%d] ID: %s | Creatore: %s\t| Giocatori: %d/2\n",
                    i + 1, games[i].game_id, games[i].creator, 
                    games[i].players_count);
         }
-        printf("─────────────────────────────────────────\n");
+        printf("──────────────────────────────────────────────────────────────\n");
         printf("Usa 'join <game_id>' per unirti a una partita.");
     }
     fflush(stdout);
@@ -584,7 +582,12 @@ void handle_response_leave_game(const void *payload) {
 void handle_response_quit(const void *payload) {
     (void)payload;  // Non utilizzato per questa risposta
     
-    printf("\n✅ Disconnessione confermata. Arrivederci!");
+    // Ferma il thread di notifiche
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.running = false;
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    printf("\n✅ Disconnessione confermata. Arrivederci!\n");
     fflush(stdout);
 }
 
@@ -593,58 +596,58 @@ void handle_response_error(uint8_t error_code) {
     
     switch (error_code) {
         case ERR_GAME_NOT_FOUND:
-            printf("Partita non trovata.");
+            printf("partita non trovata.");
             break;
         case ERR_GAME_FULL:
-            printf("Partita piena.");
+            printf("partita piena.");
             break;
         case ERR_REQUEST_PENDING:
-            printf("Richiesta di join già in sospeso.");
+            printf("richiesta di join già in sospeso.");
             break;
         case ERR_NO_PENDING_JOIN:
-            printf("Nessuna richiesta di join in sospeso.");
+            printf("nessuna richiesta di join in sospeso.");
             break;
         case ERR_PENDING_JOIN_EXISTS:
-            printf("La partita ha già una richiesta di join in sospeso.");
+            printf("la partita ha già una richiesta di join in sospeso.");
             break;
         case ERR_NOT_IN_LOBBY:
-            printf("Non sei in una lobby.");
+            printf("non sei in una lobby.");
             break;
         case ERR_ALREADY_IN_GAME:
-            printf("Sei già in una partita.");
+            printf("sei già in una partita.");
             break;
         case ERR_NOT_IN_GAME:
-            printf("Non sei in una partita.");
+            printf("non sei in una partita.");
             break;
         case ERR_NOT_YOUR_TURN:
-            printf("Non è il tuo turno.");
+            printf("non è il tuo turno.");
             break;
         case ERR_INVALID_MOVE:
-            printf("Mossa non valida. Assicurati che la mossa\n"
+            printf("mossa non valida. Assicurati che la mossa\n"
                    "   sia un numero intero valido tra 1 e 9.");
             break;
         case ERR_CELL_OCCUPIED:
-            printf("Cella già occupata.");
+            printf("cella già occupata.");
             break;
         case ERR_NOT_REGISTERED:
-            printf("Non sei registrato.");
+            printf("non sei registrato.");
             break;
         case ERR_ALREADY_REGISTERED:
-            printf("Sei già registrato.");
+            printf("sei già registrato.");
             break;
         case ERR_INVALID_NAME:
-            printf("Nome utente non valido. Usa solo lettere,\n"
+            printf("nome utente non valido. Usa solo lettere,\n"
                    "   numeri e underscore (max 32 caratteri).");
             break;
         case ERR_NAME_TAKEN:
-            printf("Nome utente già in uso.");
+            printf("nome utente già in uso.");
             break;
         case ERR_SERVER_FULL:
             // Cancella la riga corrente
             printf("\r\033[K");
             // Cancella la riga precedente (una riga sopra)
             printf("\033[A\033[2K");
-            printf("❌ Errore: Server pieno. Impossibile connettersi.\n");
+            printf("❌ Errore: server pieno. Impossibile connettersi.\n");
             printf("   Premere un tasto per uscire...");
             fflush(stdout);
             pthread_mutex_lock(&client_state.mutex);
@@ -652,10 +655,10 @@ void handle_response_error(uint8_t error_code) {
             pthread_mutex_unlock(&client_state.mutex);
             return;  // Evita il fflush finale
         case ERR_INVALID_PAYLOAD:
-            printf("Payload non valido.");
+            printf("payload non valido.");
             break;
         default:  // ERR_INTERNAL o sconosciuto
-            printf("Errore del server (%d).", error_code);
+            printf("sconosciuto (%d).", error_code);
             break;
     }
     fflush(stdout);
@@ -679,9 +682,22 @@ void handle_join_request_notification(const notify_join_request_t *notify) {
 }
 
 void handle_join_cancellation_notification(const notify_join_cancellation_t *notify) {
-    printf("[NOTIFICA] %s ha annullato la richiesta di join. <", notify->opponent);
+    pthread_mutex_lock(&client_state.mutex);
+
+    if (notify->is_cancelled_by_joiner) {
+        // Joiner ha annullato la richiesta, mando notifica al creatore
+        printf("[NOTIFICA] %s ha annullato la richiesta di join. <", notify->opponent);
+    } else {
+        // Creatore ha annullato la richiesta, torno a REGISTERED
+        client_state.state = CLIENT_REGISTERED;
+        client_state.current_game_id[0] = '\0';
+        printf("[NOTIFICA] Il creatore ha abbandonato la partita. <"
+                "\n   Sei tornato al menu principale.");
+    }
+    pthread_mutex_unlock(&client_state.mutex);
+    
     fflush(stdout);
-    LOG_INFO("Join cancellato da: %s", notify->opponent);
+    LOG_INFO("Join cancellato da: %s", notify->is_cancelled_by_joiner ? "joiner" : "creatore");
 }
 
 void handle_join_response_notification(const notify_join_response_t *notify) {
@@ -846,7 +862,7 @@ void handle_opponent_left_notification(const notify_opponent_left_t *notify) {
 
 void client_run(void) {
     char input[256];
-    bool quit = false;
+    bool still_running = true;
     
     printf("\n========================================\n");
     printf("   CLIENT TRIS - Menu Principale\n");
@@ -866,17 +882,15 @@ void client_run(void) {
     printf("\n========================================\n");
     printf("\n> ");
     
-    while (!quit) {
+    while (still_running) {
         fflush(stdout);
-        
-        // Controlla se il thread di notifiche è ancora attivo
+
         pthread_mutex_lock(&client_state.mutex);
-        bool still_running = client_state.running;
+        still_running = client_state.running;
         pthread_mutex_unlock(&client_state.mutex);
         
         if (!still_running) {
             printf("\r \r");
-            printf("Il client verrà terminato.\n");
             break;
         }
         
@@ -1054,8 +1068,13 @@ void client_run(void) {
         // === QUIT ===
         else if (strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0) {
             printf("Disconnessione...\n");
-            send_quit_request();
-            quit = true;
+
+            if (send_quit_request() == 0) {
+                // Aspetta che il thread di notifiche termini
+                pthread_join(client_state.notification_thread, NULL);
+            } else {
+                printf("Errore nell'invio della richiesta di disconnessione.\n");
+            }
         }
         // === HELP ===
         else if (strcmp(cmd, "help") == 0) {
