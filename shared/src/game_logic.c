@@ -76,6 +76,12 @@ int game_make_move(game_state_t *game, int player_idx, int position) {
     game->board[board_idx] = symbol;
     game->move_count++;
     
+    // Non può esserci un vincitore prima della 5a mossa
+    if (game->move_count < 5) {
+        game->current_player = 1 - game->current_player;
+        return 1; 
+    }
+
     // Controlla se c'è un vincitore
     int winner = game_check_winner(game);
     if (winner != -1) {
@@ -122,11 +128,11 @@ int game_check_winner(const game_state_t *game) {
             
             // Trova quale giocatore ha vinto
             char winning_symbol = board[pos1];
-            for (int player = 0; player < 2; player++) {
-                if (game_get_player_symbol(game, player) == winning_symbol) {
-                    return player;
-                }
-            }
+            if (game_get_player_symbol(game, 0) == winning_symbol) {
+                return 0; // Player[0] ha vinto
+            } 
+
+            return 1; // Player[1] ha vinto
         }
     }
     
@@ -163,6 +169,7 @@ void game_print_board(const game_state_t *game) {
     
     printf("\n=== Partita: ");
     switch (game->status) {
+        case GAME_CREATED:     printf("creata"); break;
         case GAME_WAITING:     printf("in attesa di giocatori"); break;
         case GAME_IN_PROGRESS: printf("in corso (mossa %d)", game->move_count + 1); break;
         case GAME_FINISHED:    
@@ -174,7 +181,7 @@ void game_print_board(const game_state_t *game) {
                 printf("finita");
             }
             break;
-        default: printf("Sconosciuto"); break;
+        default: printf("Sconosciuto");
     }
     printf(" ===\n");
     printf("Giocatori: %s (%s%s%c%s) vs %s (%s%s%c%s)\n", 
@@ -182,33 +189,37 @@ void game_print_board(const game_state_t *game) {
            COLOR_RED, BOLD, FIRST_PLAYER_SYMBOL, RESET,
            game->players[1][0] ? game->players[1] : "[In attesa]",
            COLOR_BLUE, BOLD, SECOND_PLAYER_SYMBOL, RESET);
-    printf("Turno di: %s\n", 
-           game->status == GAME_IN_PROGRESS ? game->players[game->current_player] : "Nessuno");
     
+    if (game->status == GAME_IN_PROGRESS) {
+        printf("Turno di: %s \n\n", game->players[game->current_player]);
+    } else {
+        printf("\n");
+    }
+
+    printf("┌───────┬───────┬───────┐");
     for (int row = 0; row < 3; row++) {
-        printf("\n     |     |     \n ");
+        printf("\n│       │       │       │\n│ ");
         for (int col = 0; col < 3; col++) {
             int idx = row * 3 + col;
             char cell = game->board[idx];
             
             if (cell == FIRST_PLAYER_SYMBOL) {
-                printf(" %s%s%c%s ", COLOR_RED, BOLD, cell, RESET);
+                printf("  %s%s%c%s  ", COLOR_RED, BOLD, cell, RESET);
             } else if (cell == SECOND_PLAYER_SYMBOL) {
-                printf(" %s%s%c%s ", COLOR_BLUE, BOLD, cell, RESET);
+                printf("  %s%s%c%s  ", COLOR_BLUE, BOLD, cell, RESET);
             } else {
-                printf("(%d)", idx + 1);  // Cella vuota normale
+                printf(" (%d) ", idx + 1);  // Cella vuota normale
             }
             
-            if (col < 2) printf(" | ");
+            if (col < 2) printf(" │ ");
         }
-        printf(" \n");
-        if (row < 2) printf("_____|_____|_____");
+        printf(" │\n");
+        printf("│       │       │       │\n");
+        if (row < 2) { 
+            printf("├───────┼───────┼───────┤");   
+        } else {
+            printf("└───────┴───────┴───────┘");
+        }
     }
-    printf("     |     |     \n");
-}
-
-void game_get_board_string(const game_state_t *game, char board_str[9]) {
-    if (!game || !board_str) return;
-    
-    memcpy(board_str, game->board, 9);
+    printf("\n");
 }

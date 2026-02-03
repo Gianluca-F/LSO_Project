@@ -1057,7 +1057,7 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
     
     // Prepara board per notifiche
     char board_str[BOARD_SIZE];
-    game_get_board_string(&game->state, board_str);
+    memcpy(board_str, game->state.board, BOARD_SIZE);
     
     pthread_mutex_unlock(&server_state.mutex);
     

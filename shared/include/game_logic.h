@@ -15,7 +15,7 @@ typedef struct {
     char players[2][MAX_PLAYER_NAME];   // Nomi dei due giocatori
     char board[9];                      // Tabellone Tris 3x3, posizioni 0-8
     int current_player;                 // 0 o 1 (indice nel array players)
-    int status;                         // GAME_WAITING, GAME_IN_PROGRESS, GAME_FINISHED
+    int status;                         // GAME_CREATED, GAME_WAITING, GAME_IN_PROGRESS, GAME_FINISHED
     int move_count;                     // Numero mosse effettuate
     int winner;                         // -1=nessuno, 0=player[0], 1=player[1], 2=pareggio
 } game_state_t;
@@ -116,16 +116,5 @@ char game_get_player_symbol(const game_state_t *game, int player_idx);
  * @param game Puntatore alla struttura game_state_t
  */
 void game_print_board(const game_state_t *game);
-
-/**
- * Copia lo stato del tabellone in un array di caratteri
- * 
- * Utilizzata per serializzare lo stato del tabellone nel protocollo
- * di comunicazione client-server.
- * 
- * @param game Puntatore alla struttura game_state_t
- * @param board_str Array di 9 caratteri dove copiare il tabellone
- */
-void game_get_board_string(const game_state_t *game, char board_str[9]);
 
 #endif 
