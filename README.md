@@ -149,36 +149,44 @@ LSO_Project/
 ## 🔨 Comandi Make
 
 ```bash
-make              # Compila server e client
-make server       # Compila solo server
-make client       # Compila solo client
-make clean        # Rimuove file oggetto
-make clean-all    # Rimuove oggetti e log
-make run-server   # Compila ed esegue server
-make run-client   # Compila ed esegue client
+make all                # Compila server e client
+make server             # Solo server
+make client             # Solo client
+make clean              # Pulisce object files
+make clean-all          # Pulisce tutto (inclusi log)
+make run-server         # Compila ed esegue server
+make run-client         # Compila ed esegue client
+make valgrind-server    # Esegue il server con Valgrind per memory leak detection
+make valgrind-helgrind	# Esegue il server con Helgrind per race condition detection
+make install-deps 		# Installa eventuali dipendenze necessarie
+make test       		# Esegue i test
+make help       		# Mostra questo messaggio
 ```
 
 ---
 
 ## ⚙️ Configurazione
 
-### Server (`server/config/server.conf`)
+Prima di avviare server e client, è bene scrivere i rispettivi file di configurazione (togliendo il <.example> finale).  
+Di seguito, degli esempi sul tipo di configurazione che potrebbero avere, ma si è liberi di cambiare i dati come si preferisce.
 
+
+### Server (`server/config/server.conf.example`)
 ```ini
 server_ip=127.0.0.1
 port=90
 max_clients=7       # Massimo 7 client simultanei
 max_games=4         # Massimo 4 partite simultanee
-log_level=INFO
+log_level=INFO      # DEBUG < INFO < WARN < ERROR
 log_file=logs/server.log
 ```
 
-### Client (`client/config/client.conf`)
+### Client (`client/config/client.conf.example`)
 
 ```ini
 server_ip=127.0.0.1
 server_port=90
-log_level=DEBUG
+log_level=DEBUG      # DEBUG < INFO < WARN < ERROR
 log_file=logs/client.log
 ```
 
@@ -190,7 +198,6 @@ Documentazione completa disponibile in `docs/`:
 
 - **[architecture.md](docs/architecture.md)** - Architettura del sistema, componenti, strutture dati
 - **[protocol.md](docs/protocol.md)** - Specifica dettagliata del protocollo di comunicazione
-- **[user_guide.md](docs/user_guide.md)** - Guida utente completa con esempi
 - **[developer_guide.md](docs/developer_guide.md)** - Guida per sviluppatori, API, estensioni
 
 ---
