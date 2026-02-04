@@ -136,7 +136,7 @@ int protocol_validate_name(const char *name) {
     return 1;
 }
 
-inline int protocol_validate_move(uint8_t pos) {
+int protocol_validate_move(uint8_t pos) {
     // For tictactoe, valid positions are 1-9
     return (pos >= 1 && pos <= 9);
 }

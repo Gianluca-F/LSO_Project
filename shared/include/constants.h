@@ -29,7 +29,7 @@
 // RISULTATI PARTITA
 // ============================================================================
 
-#define RESULT_NONE 0                   // Nessun risultato //NOTE: non usato
+#define RESULT_NONE 0                   // Nessun risultato //NOTE: future proof
 #define RESULT_WIN  1                   // Vittoria
 #define RESULT_LOSE 2                   // Sconfitta
 #define RESULT_DRAW 3                   // Pareggio
