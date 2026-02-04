@@ -198,6 +198,7 @@ int create_game(const char *creator_name, int creator_fd);
  * marca la partita come non attiva e decrementa il contatore.
  * 
  * @param game Puntatore alla partita da pulire
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
 void cleanup_game(game_session_t *game);
 
@@ -283,22 +284,25 @@ void handle_quit(int client_fd, uint32_t req_seq_id);
 // ===========================================================================
 
 /**
- * Invia notifica di cancellazione join al creatore originale
- * 
- * @param joiner_fd File descriptor del client che ha annullato la richiesta di join
- * @note Richiede che server_state.mutex sia già acquisito dal chiamante
- */
-void send_join_cancellation_notify_to_original_creator(int joiner_fd);
-
-/**
  * Invia risposta di errore per LIST_GAMES
  * 
  * @param client_fd File descriptor del client
  * @param error Codice di errore da inviare
  * @param req_seq_id Sequence ID della richiesta (per risposta)
- * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
 void send_list_games_error(int client_fd, error_code_t error, uint32_t req_seq_id);
+
+/**
+ * Trova il creatore da notificare in caso di cancellazione join
+ * 
+ * Cerca tra le partite attive se qualcuno stava aspettando
+ * l'accettazione del join da parte del creatore.
+ * 
+ * @param joiner_fd File descriptor del giocatore che ha cancellato il join
+ * @return File descriptor del creatore da notificare, o -1 se non trovato
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
+ */
+int find_creator_for_join_cancellation(int joiner_fd);
 
 /**
  * Pulisce lo stato di un join pendente per un client
@@ -312,28 +316,36 @@ void send_list_games_error(int client_fd, error_code_t error, uint32_t req_seq_i
 void cleanup_pending_join(int client_fd);
 
 /**
+ * Struttura per dati di notifica dopo cleanup di un client
+ */
+typedef struct {
+    int type; // 0=nessuna, 1=opponent_left, 2=join_cancellation_by_joiner, 3=join_cancellation_by_creator
+    int target_fd;
+    char opponent_name[MAX_PLAYER_NAME];
+} cleanup_notify_data_t;
+
+/**
  * Gestisce la rimozione di un client da una partita/lobby/richiesta join
  * 
  * Funzione helper centralizzata che gestisce tutti i casi di uscita
  * del client da uno stato di gioco (REQUESTING_JOIN, IN_LOBBY, IN_GAME).
- * Invia le notifiche appropriate agli altri client coinvolti e fa cleanup
- * della partita. Resetta sempre il client a CLIENT_REGISTERED.
+ * Resetta sempre il client a CLIENT_REGISTERED.
  * 
  * @param client_fd File descriptor del client da rimuovere dal game state
- * @return File descriptor dell'avversario se era in partita attiva, altrimenti -1
+ * @return Struttura con dati per notifiche da inviare FUORI dal mutex
  * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-int cleanup_client_from_game_state(int client_fd);
+cleanup_notify_data_t cleanup_client_from_game_state(int client_fd);
 
 /**
- * Cleanup comune alla disconnessione di un client
+ * Invia notifica all'eventuale client avversario dopo il cleanup di un client
  * 
- * Notifica l'avversario se il client era in partita,
- * pulisce la partita e rimuove il client dallo stato.
+ * Usa i dati preparati da cleanup_client_from_game_state per
+ * inviare le notifiche appropriate (opponent_left, join_cancellation).
  * 
- * @param client_fd File descriptor del client disconnesso
+ * @param notify_data Struttura con dati di notifica
  */
-void handle_disconnect(int client_fd);
+void send_notify_after_cleanup_client(cleanup_notify_data_t notify_data);
 
 // ============================================================================
 // FUNZIONI DI NOTIFICA
@@ -372,8 +384,9 @@ void notify_join_response(int joiner_fd, const char *game_id, int accepted);
  * 
  * Invia NOTIFY_GAME_START con il simbolo assegnato e nome avversario.
  * 
- * @param game Puntatore alla partita che sta iniziando
+ * @param player_fds Array di 2 file descriptor dei giocatori
+ * @param player_names Array di 2 nomi dei giocatori
  */
-void notify_game_start(game_session_t *game);
+void notify_game_start(int player_fds[2], const char *player_names[2]);
 
 #endif

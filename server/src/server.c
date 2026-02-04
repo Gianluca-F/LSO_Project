@@ -159,12 +159,12 @@ void start_server(int server_fd) {
 
         pthread_t tid;
         if (pthread_create(&tid, NULL, handle_client, client_fd) != 0) {
-            LOG_ERROR("Creazione thread fallita per FD=%d: %s", *client_fd, strerror(errno));
+            LOG_ERROR("Creazione thread fallita per FD=%d: %s", new_client_fd, strerror(errno));
             perror("pthread_create");
-            close(*client_fd);
+            close(new_client_fd);
             free(client_fd);
         } else {
-            LOG_DEBUG("Thread creato per gestire client FD=%d", *client_fd);
+            LOG_DEBUG("Thread creato per gestire client FD=%d", new_client_fd);
             // Non servono join qui: lasciamo i thread staccati
             pthread_detach(tid);
         }
@@ -203,7 +203,10 @@ void *handle_client(void *arg) {
             } else {
                 LOG_WARN("Errore ricezione header da FD=%d: %s", client_fd, strerror(errno));
             }
-            handle_disconnect(client_fd); 
+            pthread_mutex_lock(&server_state.mutex);
+            cleanup_notify_data_t notify_data = cleanup_client_from_game_state(client_fd);
+            pthread_mutex_unlock(&server_state.mutex);
+            send_notify_after_cleanup_client(notify_data);
             break;
         }
         
@@ -654,9 +657,7 @@ void handle_create_game(int client_fd, uint32_t req_seq_id) {
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
     // Broadcast ai client registrati
-    pthread_mutex_lock(&server_state.mutex);
     broadcast_to_registered_clients(MSG_NOTIFY, &notify, sizeof(notify));
-    pthread_mutex_unlock(&server_state.mutex);
     
     LOG_INFO("Broadcast GAME_CREATED inviato per partita '%s'", game->game_id);
 }
@@ -747,6 +748,7 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length, uint3
     LOG_DEBUG("handle_join_game chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     response_join_game_t response;
+    memset(&response, 0, sizeof(response));  // Valgrind si arrabbia
     response.status = STATUS_ERROR;
     response.error_code = ERR_INTERNAL;
     response.your_symbol = SECOND_PLAYER_SYMBOL;
@@ -835,15 +837,20 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length, uint3
     response.opponent[MAX_PLAYER_NAME - 1] = '\0';
     strncpy(response.game_id, game->state.game_id, MAX_GAME_ID_LEN - 1);
     response.game_id[MAX_GAME_ID_LEN - 1] = '\0';
-    
+
+    // --- Prepara dati per notifica al creatore ---
+    int creator_fd = game->player_fds[0];
+    char joiner_name[MAX_PLAYER_NAME];
+    strncpy(joiner_name, client->name, MAX_PLAYER_NAME - 1);
+    joiner_name[MAX_PLAYER_NAME - 1] = '\0';
+    // --- (notify non deve essere dentro mutex) ---
+
     pthread_mutex_unlock(&server_state.mutex);
     
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
-    // Notifica al creatore
-    pthread_mutex_lock(&server_state.mutex);
-    notify_join_request(game->player_fds[0], client->name);
-    pthread_mutex_unlock(&server_state.mutex);
+    // Notifica al creatore della richiesta di join
+    notify_join_request(creator_fd, joiner_name);
 }
 
 void handle_accept_join(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id) {
@@ -921,6 +928,19 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length, uin
             
             // Pulisci pending join
             game->pending_join_fd = -1;
+
+            // -------- Prepara dati unicamente per le notifiche --------
+            int player_fds[2] = { game->player_fds[0], game->player_fds[1] };
+            char player_names[2][MAX_PLAYER_NAME];
+            strncpy(player_names[0], game->state.players[0], MAX_PLAYER_NAME - 1);
+            player_names[0][MAX_PLAYER_NAME - 1] = '\0';
+            strncpy(player_names[1], game->state.players[1], MAX_PLAYER_NAME - 1);
+            player_names[1][MAX_PLAYER_NAME - 1] = '\0';
+
+            char game_id[MAX_GAME_ID_LEN];
+            strncpy(game_id, game->state.game_id, MAX_GAME_ID_LEN - 1);
+            game_id[MAX_GAME_ID_LEN - 1] = '\0';
+            // ------ (notify non deve essere dentro mutex) ------
             
             pthread_mutex_unlock(&server_state.mutex);
             
@@ -930,12 +950,11 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length, uin
             protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
             
             // Notifica al joiner: accettato
-            pthread_mutex_lock(&server_state.mutex);
-            notify_join_response(joiner_fd, game->state.game_id, 1);
+            notify_join_response(joiner_fd, game_id, 1);
             
             // Notifica inizio partita a entrambi
-            notify_game_start(game);
-            pthread_mutex_unlock(&server_state.mutex);
+            const char *player_names_ptrs[2] = {player_names[0], player_names[1]};
+            notify_game_start(player_fds, player_names_ptrs);
         } else {
             LOG_ERROR("Errore aggiunta giocatore alla partita");
             pthread_mutex_unlock(&server_state.mutex);
@@ -952,6 +971,12 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length, uin
         }
         
         game->pending_join_fd = -1;
+
+        // ------ Prepara dati unicamente per le notifiche ------
+        char game_id[MAX_GAME_ID_LEN];
+        strncpy(game_id, game->state.game_id, MAX_GAME_ID_LEN - 1);
+        game_id[MAX_GAME_ID_LEN - 1] = '\0';
+        // ------ (notify non deve essere dentro mutex) ------
         
         pthread_mutex_unlock(&server_state.mutex);
         
@@ -961,9 +986,7 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length, uin
         protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
         
         // Notifica al joiner: rifiutato
-        pthread_mutex_lock(&server_state.mutex);
-        notify_join_response(joiner_fd, game->state.game_id, 0);
-        pthread_mutex_unlock(&server_state.mutex);
+        notify_join_response(joiner_fd, game_id, 0);
     }
 }
 
@@ -1055,9 +1078,19 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
     int opponent_idx = 1 - client->player_index;
     int opponent_fd = game->player_fds[opponent_idx];
     
-    // Prepara board per notifiche
+    // --- Copia dati di gioco per notifiche prima di rilasciare il lock ---
     char board_str[BOARD_SIZE];
     memcpy(board_str, game->state.board, BOARD_SIZE);
+    
+    int player_fds[2] = {game->player_fds[0], game->player_fds[1]};
+    int winner = game->state.winner;
+    int is_finished = game_is_finished(&game->state);
+
+    int move_pos = move->pos;
+    char player_name[MAX_PLAYER_NAME];
+    strncpy(player_name, client->name, MAX_PLAYER_NAME - 1);
+    player_name[MAX_PLAYER_NAME - 1] = '\0';
+    // --- (notifiche non devono essere dentro mutex) ---
     
     pthread_mutex_unlock(&server_state.mutex);
     
@@ -1065,46 +1098,41 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     
     // Controlla se la partita è finita
-    if (game_is_finished(&game->state)) {
-        LOG_INFO("Partita '%s' terminata", game->state.game_id);
+    if (is_finished) {
+        LOG_INFO("Partita terminata");
         
         // Notifica fine partita a entrambi
         for (int i = 0; i < 2; i++) {
             notify_game_end_t notify;
             notify.notify_type = NOTIFY_GAME_END;
-
-            pthread_mutex_lock(&server_state.mutex);
             memcpy(notify.board, board_str, BOARD_SIZE);
             
             // Determina risultato per questo giocatore
-            if (game->state.winner == 2) {
+            if (winner == 2) {
                 notify.result = RESULT_DRAW;
-            } else if (game->state.winner == i) {
+            } else if (winner == i) {
                 notify.result = RESULT_WIN;
             } else {
                 notify.result = RESULT_LOSE;
             }
             
-            pthread_mutex_unlock(&server_state.mutex);
-            
-            protocol_send(game->player_fds[i], MSG_NOTIFY, &notify, sizeof(notify), 0);
-            LOG_DEBUG("GAME_END inviato a FD=%d, result=%d", game->player_fds[i], notify.result);
+            protocol_send(player_fds[i], MSG_NOTIFY, &notify, sizeof(notify), 0);
+            LOG_DEBUG("GAME_END inviato a FD=%d, result=%d", player_fds[i], notify.result);
         }
         
         // Cleanup partita
+        pthread_mutex_lock(&server_state.mutex);
         cleanup_game(game);
+        pthread_mutex_unlock(&server_state.mutex);
     } else {
         // Partita continua: notifica mossa all'avversario
         notify_move_made_t notify_move;
         notify_move.notify_type = NOTIFY_MOVE_MADE;
-
-        pthread_mutex_lock(&server_state.mutex);
-        notify_move.pos = move->pos;
-        strncpy(notify_move.player, client->name, MAX_PLAYER_NAME - 1);
+        notify_move.pos = move_pos;
+        strncpy(notify_move.player, player_name, MAX_PLAYER_NAME - 1);
         notify_move.player[MAX_PLAYER_NAME - 1] = '\0';
         memcpy(notify_move.board, board_str, BOARD_SIZE);
         
-        pthread_mutex_unlock(&server_state.mutex);
         protocol_send(opponent_fd, MSG_NOTIFY, &notify_move, sizeof(notify_move), 0);
         LOG_DEBUG("MOVE_MADE inviato a FD=%d", opponent_fd);
     }
@@ -1147,23 +1175,17 @@ void handle_leave_game(int client_fd, uint32_t req_seq_id) {
     LOG_INFO("Client '%s' (FD=%d) lascia volontariamente (status=%d)", 
              client->name, client_fd, client->status);
     
-    // Usa la funzione helper per cleanup (ritorna opponent_fd se presente)
-    int opponent_fd = cleanup_client_from_game_state(client_fd);
+    cleanup_notify_data_t notify_data = cleanup_client_from_game_state(client_fd);
     
     pthread_mutex_unlock(&server_state.mutex);
-    
+
     // Invia risposta di successo
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
-    
-    // Se c'era un avversario in partita, notificalo
-    if (opponent_fd > 0) {
-        notify_opponent_left_t notify;
-        notify.notify_type = NOTIFY_OPPONENT_LEFT;
-        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-        LOG_INFO("OPPONENT_LEFT inviato a FD=%d", opponent_fd);
-    }
+
+    // Invia notifica all'eventuale client avversario
+    send_notify_after_cleanup_client(notify_data);
 }
 
 void handle_quit(int client_fd, uint32_t req_seq_id) {
@@ -1173,21 +1195,15 @@ void handle_quit(int client_fd, uint32_t req_seq_id) {
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
 
-    // Cleanup dal game state (se presente)
     pthread_mutex_lock(&server_state.mutex);
-    int opponent_fd = cleanup_client_from_game_state(client_fd);
+    cleanup_notify_data_t notify_data = cleanup_client_from_game_state(client_fd);
     pthread_mutex_unlock(&server_state.mutex);
 
     // Invia risposta al client che sta quittando
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
-    
-    // Notifica l'avversario se c'era una partita attiva
-    if (opponent_fd > 0) {
-        notify_opponent_left_t notify;
-        notify.notify_type = NOTIFY_OPPONENT_LEFT;
-        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-        LOG_INFO("OPPONENT_LEFT inviato a FD=%d (client in quit)", opponent_fd);
-    }
+
+    // Invia notifica all'eventuale client avversario
+    send_notify_after_cleanup_client(notify_data);
 }
 
 // ============================================================================
@@ -1202,25 +1218,14 @@ void send_list_games_error(int client_fd, error_code_t error, uint32_t req_seq_i
     protocol_send(client_fd, MSG_RESPONSE, &err_response, sizeof(err_response), req_seq_id);
 }
 
-void send_join_cancellation_notify_to_original_creator(int client_fd) {
+int find_creator_for_join_cancellation(int joiner_fd) {
     for (int i = 0; i < server_state.max_games; i++) {
         game_session_t *game = &server_state.games[i];
-        if (game->active && game->pending_join_fd == client_fd) {
-            int creator_fd = game->player_fds[0];
-            client_info_t *joiner = &server_state.clients[find_client_by_fd(client_fd)];
-
-            notify_join_cancellation_t notify;
-            notify.notify_type = NOTIFY_JOIN_CANCELLATION;
-            notify.is_cancelled_by_joiner = 1;
-            strncpy(notify.opponent, joiner->name, MAX_PLAYER_NAME - 1);
-            notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
-            
-            protocol_send(creator_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-            LOG_INFO("NOTIFY_JOIN_CANCELLATION inviato a creatore FD=%d", creator_fd);
-            
-            break;
+        if (game->active && game->pending_join_fd == joiner_fd) {
+            return game->player_fds[0];
         }
     }
+    return -1;
 }
 
 void cleanup_pending_join(int client_fd) {
@@ -1234,51 +1239,55 @@ void cleanup_pending_join(int client_fd) {
     }
 }
 
-int cleanup_client_from_game_state(int client_fd) {
+cleanup_notify_data_t cleanup_client_from_game_state(int client_fd) {
+    cleanup_notify_data_t result = {0, -1, ""};
+    
     int client_idx = find_client_by_fd(client_fd);
     if (client_idx == -1) {
         LOG_WARN("cleanup_client_from_game_state: Client FD=%d non trovato", client_fd);
-        return -1;
+        return result;
     }
     
     client_info_t *client = &server_state.clients[client_idx];
+    strncpy(result.opponent_name, client->name, MAX_PLAYER_NAME - 1);
+    result.opponent_name[MAX_PLAYER_NAME - 1] = '\0';
     
-    // Caso 1: Client in attesa di risposta
-    if (client->status == CLIENT_REQUESTING_JOIN) {    
-        send_join_cancellation_notify_to_original_creator(client_fd); 
+    // Caso 1: Client in attesa di risposta (joiner che cancella)
+    if (client->status == CLIENT_REQUESTING_JOIN) {
+        int creator_fd = find_creator_for_join_cancellation(client_fd);
+        
         cleanup_pending_join(client_fd);
         client->status = CLIENT_REGISTERED;
-
+        
         LOG_INFO("Client '%s' (FD=%d) rimosso da richiesta join pendente",
                  client->name, client_fd);
+        
+        if (creator_fd > 0) {
+            result.type = 2; // join_cancellation_by_joiner
+            result.target_fd = creator_fd;
+        }
     }
-    // Caso 2: Client in lobby (creatore in attesa)
+    // Caso 2: Client in lobby (creatore che lascia)
     else if (client->status == CLIENT_IN_LOBBY) {
         game_session_t *game = &server_state.games[client->game_index];
         
         if (!game->active) {
             LOG_ERROR("Partita non attiva per client FD=%d", client_fd);
             client->status = CLIENT_REGISTERED;
-            return -1;
-        }
-        // Notifica al joiner pendente che il creatore ha lasciato/disconnesso
-        if (game->pending_join_fd > 0) {
-            notify_join_cancellation_t notify;
-            notify.notify_type = NOTIFY_JOIN_CANCELLATION;
-            notify.is_cancelled_by_joiner = 0;
-            strncpy(notify.opponent, client->name, MAX_PLAYER_NAME - 1);
-            notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
-            
-            client_info_t *joiner = &server_state.clients[find_client_by_fd(game->pending_join_fd)];
-            joiner->status = CLIENT_REGISTERED; // Reset stato joiner
-
-            protocol_send(game->pending_join_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-            
-            LOG_INFO("Notifica JOIN_CANCELLATION inviata a FD=%d (creatore '%s' ha lasciato)",
-                        game->pending_join_fd, client->name);
+            return result;
         }
         
-        cleanup_game(game);
+        // Prepara notifica al joiner pendente
+        if (game->pending_join_fd > 0) {
+            result.type = 3; // join_cancellation_by_creator
+            result.target_fd = game->pending_join_fd;
+            
+            // Reset stato joiner
+            client_info_t *joiner = &server_state.clients[find_client_by_fd(game->pending_join_fd)];
+            joiner->status = CLIENT_REGISTERED;
+        }
+        
+        cleanup_game(game); // Mutex già acquisito
         LOG_INFO("Client '%s' (FD=%d) rimosso da lobby", client->name, client_fd);
     }
     // Caso 3: Client in partita attiva (IN_GAME)
@@ -1288,38 +1297,47 @@ int cleanup_client_from_game_state(int client_fd) {
         if (!game->active) {
             LOG_ERROR("Partita non attiva per client FD=%d", client_fd);
             client->status = CLIENT_REGISTERED;
-            return -1;
+            return result;
         }
+        
         // Trova l'avversario prima del cleanup
         int opponent_idx = 1 - client->player_index;
         int opponent_fd = game->player_fds[opponent_idx];
         
-        // Cleanup della partita (resetta anche l'avversario a REGISTERED)
-        cleanup_game(game);
+        cleanup_game(game); // Mutex già acquisito
         
         LOG_INFO("Client '%s' (FD=%d) rimosso da partita attiva, opponent_fd=%d",
                     client->name, client_fd, opponent_fd);
-
-        return opponent_fd;
+        
+        result.type = 1; // opponent_left
+        result.target_fd = opponent_fd;
     }
 
-    return -1;  // Nessun client da notificare
+    return result;
 }
 
-void handle_disconnect(int client_fd) {
-    pthread_mutex_lock(&server_state.mutex);
-    
-    // Usa la funzione helper per cleanup e ottieni l'opponent_fd se presente
-    int opponent_fd = cleanup_client_from_game_state(client_fd);
-    
-    pthread_mutex_unlock(&server_state.mutex);
-    
-    // Notifica l'avversario se c'era una partita attiva
-    if (opponent_fd > 0) {
+void send_notify_after_cleanup_client(cleanup_notify_data_t notify_data) {
+    if (notify_data.type == 1) { // opponent_left
         notify_opponent_left_t notify;
         notify.notify_type = NOTIFY_OPPONENT_LEFT;
-        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
-        LOG_INFO("OPPONENT_LEFT inviato a FD=%d (client disconnesso)", opponent_fd);
+        protocol_send(notify_data.target_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_INFO("OPPONENT_LEFT inviato a FD=%d (client disconnesso)", notify_data.target_fd);
+    } else if (notify_data.type == 2) { // join_cancellation by joiner
+        notify_join_cancellation_t notify;
+        notify.notify_type = NOTIFY_JOIN_CANCELLATION;
+        notify.is_cancelled_by_joiner = 1;
+        strncpy(notify.opponent, notify_data.opponent_name, MAX_PLAYER_NAME - 1);
+        notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
+        protocol_send(notify_data.target_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_INFO("JOIN_CANCELLATION (by joiner) inviato a FD=%d (client disconnesso)", notify_data.target_fd);
+    } else if (notify_data.type == 3) { // join_cancellation by creator
+        notify_join_cancellation_t notify;
+        notify.notify_type = NOTIFY_JOIN_CANCELLATION;
+        notify.is_cancelled_by_joiner = 0;
+        strncpy(notify.opponent, notify_data.opponent_name, MAX_PLAYER_NAME - 1);
+        notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
+        protocol_send(notify_data.target_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_INFO("JOIN_CANCELLATION (by creator) inviato a FD=%d (client disconnesso)", notify_data.target_fd);
     }
 }
 
@@ -1328,16 +1346,27 @@ void handle_disconnect(int client_fd) {
 // ============================================================================
 
 void broadcast_to_registered_clients(uint8_t msg_type, const void *payload, size_t payload_size) {
+    // Copia snapshot dei client registrati (evita I/O sotto lock)
+    pthread_mutex_lock(&server_state.mutex);
+    
+    int registered_fds[server_state.max_clients];
+    int count = 0;
+    
     for (int i = 0; i < server_state.num_clients; i++) {
         if (server_state.clients[i].status == CLIENT_REGISTERED) {
-            ssize_t sent = protocol_send(server_state.clients[i].fd, msg_type, 
-                                        payload, payload_size, 0);
-            if (sent > 0) {
-                LOG_DEBUG("Broadcast inviato a client FD=%d (%s)", 
-                         server_state.clients[i].fd, server_state.clients[i].name);
-            } else {
-                LOG_WARN("Errore invio broadcast a FD=%d", server_state.clients[i].fd);
-            }
+            registered_fds[count++] = server_state.clients[i].fd;
+        }
+    }
+    
+    pthread_mutex_unlock(&server_state.mutex);
+    
+    // Invia messaggi senza lock
+    for (int i = 0; i < count; i++) {
+        ssize_t sent = protocol_send(registered_fds[i], msg_type, payload, payload_size, 0);
+        if (sent > 0) {
+            LOG_DEBUG("Broadcast inviato a client FD=%d", registered_fds[i]);
+        } else {
+            LOG_WARN("Errore invio broadcast a FD=%d", registered_fds[i]);
         }
     }
 }
@@ -1365,24 +1394,19 @@ void notify_join_response(int joiner_fd, const char *game_id, int accepted) {
              joiner_fd, game_id, accepted);
 }
 
-void notify_game_start(game_session_t *game) {
-    if (!game || !game->active) return;
-    
+void notify_game_start(int player_fds[2], const char *player_names[2]) {
     for (int i = 0; i < 2; i++) {
-        if (game->player_fds[i] <= 0) continue;
-        
         notify_game_start_t notify;
         notify.notify_type = NOTIFY_GAME_START;
-        notify.your_symbol = game_get_player_symbol(&game->state, i);
-        notify.first_player = FIRST_PLAYER_SYMBOL; 
+        notify.your_symbol = (i == 0) ? FIRST_PLAYER_SYMBOL : SECOND_PLAYER_SYMBOL;
+        notify.first_player = FIRST_PLAYER_SYMBOL;
         
-        // Imposta il nome dell'avversario
         int opponent_idx = 1 - i;
-        strncpy(notify.opponent, game->state.players[opponent_idx], MAX_PLAYER_NAME - 1);
+        strncpy(notify.opponent, player_names[opponent_idx], MAX_PLAYER_NAME - 1);
         notify.opponent[MAX_PLAYER_NAME - 1] = '\0';
         
-        protocol_send(game->player_fds[i], MSG_NOTIFY, &notify, sizeof(notify), 0);
+        protocol_send(player_fds[i], MSG_NOTIFY, &notify, sizeof(notify), 0);
         LOG_INFO("Notifica GAME_START inviata a FD=%d: symbol='%c', opponent='%s'",
-                 game->player_fds[i], notify.your_symbol, notify.opponent);
+                    player_fds[i], notify.your_symbol, notify.opponent);
     }
 }
