@@ -101,7 +101,7 @@ LSO_Project/
 ├── docs/                # Documentazione
 │   ├── architecture.md      # Architettura sistema
 │   ├── protocol.md          # Specifica protocollo
-│   ├── user_guide.md        # Guida utente
+│   ├── INDEX.md             # Indice documentazione
 │   └── developer_guide.md   # Guida sviluppatore
 │
 ├── Makefile             # Build principale
