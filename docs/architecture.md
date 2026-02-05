@@ -8,13 +8,13 @@ Il progetto implementa un'architettura multi-threaded che permette a più giocat
 
 ### Caratteristiche Principali
 
-- ✅ **Server multi-thread** con gestione concorrente di client e partite
-- ✅ **Protocollo binario custom** per comunicazione efficiente
-- ✅ **Sistema di notifiche asincrone** per eventi in tempo reale
-- ✅ **Game logic separata** per validazione mosse e gestione stato
-- ✅ **Logging completo** per debugging e monitoring
-- ✅ **Configurazione flessibile** tramite file `.conf`
-- ✅ **Thread-safety** garantita tramite mutex
+- **Server multi-thread** con gestione concorrente di client e partite
+- **Protocollo binario custom** per comunicazione efficiente
+- **Sistema di notifiche asincrone** per eventi in tempo reale
+- **Game logic separata** per validazione mosse e gestione stato
+- **Logging completo** per debugging e monitoring
+- **Configurazione flessibile** tramite file `.conf`
+- **Thread-safety** garantita tramite mutex
 
 ---
 
@@ -452,19 +452,3 @@ game_logic.c → game_logic.h, constants.h
 logging.c    → logging.h
 ```
 
----
-
-## 📚 Riferimenti
-
-### Documenti di Progetto
-
-- [README.md](../README.md) - Quick start guide
-- [protocol.md](protocol.md) - Specifica dettagliata protocollo
-- [developer_guide.md](developer_guide.md) - Guida per gli sviluppatori, API, contributi
-
-
----
-
-**Autori**: Studenti del corso LSO - Università di Napoli Federico II  
-**Anno Accademico**: 2024/2025  
-**Versione**: 1.5

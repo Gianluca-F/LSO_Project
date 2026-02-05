@@ -7,13 +7,13 @@ Progetto sviluppato per il corso di **Laboratorio di Sistemi Operativi** - Unive
 
 ## 📋 Caratteristiche
 
-- ✅ **Server multi-thread** con gestione concorrente di client e partite
-- ✅ **Protocollo binario custom** per comunicazione efficiente
-- ✅ **Sistema di notifiche asincrone** per eventi in tempo reale
-- ✅ **Game logic separata** e riutilizzabile
-- ✅ **Thread-safety** garantita con mutex
-- ✅ **Logging completo** per debugging
-- ✅ **Configurazione flessibile** tramite file `.conf`
+- **Server multi-thread** con gestione concorrente di client e partite
+- **Protocollo binario custom** per comunicazione efficiente
+- **Sistema di notifiche asincrone** per eventi in tempo reale
+- **Game logic separata** e riutilizzabile
+- **Thread-safety** garantita con mutex
+- **Logging completo** per debugging
+- **Configurazione flessibile** tramite file `.conf`
 
 ---
 
@@ -236,11 +236,11 @@ gdb ./server/bin/server
 
 ## 🛡️ Sicurezza
 
-- ✅ Validazione di tutti gli input utente
-- ✅ Controllo lunghezze buffer (no overflow)
-- ✅ Gestione thread-safe dello stato condiviso
-- ✅ Validazione mosse con game logic
-- ✅ Gestione errori completa
+- Validazione di tutti gli input utente
+- Controllo lunghezze buffer (no overflow)
+- Gestione thread-safe dello stato condiviso
+- Validazione mosse con game logic
+- Gestione errori completa
 
 ---
 
@@ -317,10 +317,13 @@ Progetto didattico - uso esclusivamente accademico.
 
 ## 🙏 Ringraziamenti
 
-- Allesandra Rossi, prof.ssa del corso LSO per le specifiche del progetto
+- Alessandra Rossi, prof.ssa del corso LSO per le specifiche del progetto
 - Comunità POSIX per la documentazione eccellente
 - Compagni di corso per il testing
 
 ---
 
-**Per maggiori dettagli, consulta la documentazione completa in `docs/`.** 
+**Per maggiori dettagli, consulta la documentazione completa in `docs/`.**  
+Si consiglia di partire da [questo file](docs/INDEX.md) per leggere la documentazione.  
+
+Si tenga presente che parte della documentazione è stata scritta mediante utilizzo di Claude Sonnet 4.5.
