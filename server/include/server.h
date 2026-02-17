@@ -38,6 +38,10 @@ typedef struct {
     // Gestione pending join (giocatore in attesa di accept)
     int pending_join_fd;                // FD del giocatore che vuole joinare (-1 se nessuno)
     char pending_join_name[MAX_PLAYER_NAME]; // Nome del giocatore in attesa
+    
+    // Gestione rematch (solo per pareggi)
+    int last_result;                    // RESULT_DRAW se pareggio
+    int rematch_requested[2];           // 1 se il giocatore [i] ha richiesto rematch
 } game_session_t;
 
 /**
@@ -202,6 +206,17 @@ int create_game(const char *creator_name, int creator_fd);
  */
 void cleanup_game(game_session_t *game);
 
+/**
+ * Se il client è in una partita finita per pareggio, fa cleanup automatico
+ * e riporta il client a CLIENT_REGISTERED. Da chiamare prima di processare
+ * comandi diversi da REMATCH.
+ * 
+ * @param client_fd File descriptor del client
+ * @note Richiede che server_state.mutex sia già acquisito dal chiamante
+ * @return 1 se è stato fatto cleanup, 0 altrimenti
+ */
+int auto_cleanup_finished_draw_game(int client_fd);
+
 // ============================================================================
 // HANDLER MESSAGGI PROTOCOLLO
 // ============================================================================
@@ -269,6 +284,14 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
  * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
 void handle_leave_game(int client_fd, uint32_t req_seq_id);
+
+/**
+ * Handler per MSG_REMATCH - Richiesta rematch
+ * 
+ * @param client_fd File descriptor del giocatore che richiede rematch
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
+ */
+void handle_rematch(int client_fd, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_QUIT - Disconnessione volontaria del client

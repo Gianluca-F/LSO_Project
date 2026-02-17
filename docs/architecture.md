@@ -183,6 +183,8 @@ typedef struct {
     int active;                      // 1 se partita attiva
     int pending_join_fd;             // FD di chi vuole joinare (-1 se nessuno)
     char pending_join_name[MAX_PLAYER_NAME];  // Nome del joiner
+    int last_result;                 // RESULT_DRAW se pareggio
+    int rematch_requested[2];        // 1 se il giocatore [i] ha richiesto rematch
 } game_session_t;
 ```
 
@@ -208,7 +210,9 @@ typedef struct {
 - `handle_join_game()` - Gestisce richiesta di join
 - `handle_accept_join()` - Accetta/rifiuta join e avvia partita
 - `handle_make_move()` - Valida e applica mosse
-- `broadcast_game_created()` - Notifica tutti i client registrati
+- `broadcast_game_created()` - Notifica tutti i client registrati  
+
+Ovviamente ci sono anche altre funzioni ed handler che svolgono un ruolo importante, come quelli relativi al quit o al rematch, ma per amor della sintesi, non sono stati riportati tutti.
 
 ---
 
@@ -265,7 +269,9 @@ typedef struct {
 - `send_join_game_request()` - Richiesta join a partita esistente
 - `send_make_move_request()` - Invio mossa
 - `client_notify_handler()` - Thread per ricevere notifiche asincrone
-- `handle_notify()` - Dispatcher notifiche per tipo
+- `handle_notify()` - Dispatcher notifiche per tipo  
+
+Stesso discorso fatto in precedenza per il Server. Scrivere tutte le funzioni send o handler sarebbe stato controproducente ai fini di una documentazione chiara e non prolissa.
 
 ---
 
@@ -314,7 +320,7 @@ typedef struct __attribute__((packed)) {
 - `MSG_ACCEPT_JOIN` (5) - Accetta/rifiuta join
 - `MSG_MAKE_MOVE` (6) - Effettua mossa
 - `MSG_LEAVE_GAME` (7) - Abbandona partita
-- `MSG_NEW_GAME` (8) - Richiesta nuova partita
+- `MSG_REMATCH` (8) - Richiesta nuova partita
 - `MSG_QUIT` (9) - Disconnessione
 
 **Server → Client**
@@ -333,6 +339,8 @@ Le notifiche sono messaggi inviati dal server **senza una richiesta esplicita** 
 - `NOTIFY_MOVE_MADE` (105) - Avversario ha fatto una mossa
 - `NOTIFY_GAME_END` (106) - Partita terminata
 - `NOTIFY_OPPONENT_LEFT` (107) - Avversario ha abbandonato
+- `NOTIFY_REMATCH_REQUEST` (108) - Avversario chiede un rematch dopo un pareggio
+- `NOTIFY_NO_REMATCH` (109) - L'avversario rifiuta un rematch
 
 ---
 

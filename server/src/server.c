@@ -56,6 +56,9 @@ void init_server_state() {
     for (int i = 0; i < server_state.max_games; i++) {
         server_state.games[i].active = 0;
         server_state.games[i].pending_join_fd = -1;
+        server_state.games[i].last_result = RESULT_NONE;
+        server_state.games[i].rematch_requested[0] = 0;
+        server_state.games[i].rematch_requested[1] = 0;
     }
     
     server_state.num_clients = 0;
@@ -204,6 +207,8 @@ void *handle_client(void *arg) {
                 LOG_WARN("Errore ricezione header da FD=%d: %s", client_fd, strerror(errno));
             }
             pthread_mutex_lock(&server_state.mutex);
+            // Auto-cleanup se il client è in una partita finita per pareggio
+            auto_cleanup_finished_draw_game(client_fd);
             cleanup_notify_data_t notify_data = cleanup_client_from_game_state(client_fd);
             pthread_mutex_unlock(&server_state.mutex);
             send_notify_after_cleanup_client(notify_data);
@@ -266,7 +271,9 @@ void *handle_client(void *arg) {
                 handle_leave_game(client_fd, header.seq_id);
                 break;
 
-            //NOTE: manca -> case MSG_NEW_GAME:
+            case MSG_REMATCH:
+                handle_rematch(client_fd, header.seq_id);
+                break;
                 
             case MSG_QUIT:
                 handle_quit(client_fd, header.seq_id);
@@ -502,9 +509,57 @@ void cleanup_game(game_session_t *game) {
     game->active = 0;
     game->pending_join_fd = -1;
     game->pending_join_name[0] = '\0';
+    game->last_result = RESULT_NONE;
+    game->rematch_requested[0] = 0;
+    game->rematch_requested[1] = 0;
     server_state.num_games--;
     
     LOG_INFO("Partita pulita, totale partite rimanenti=%d", server_state.num_games);
+}
+
+int auto_cleanup_finished_draw_game(int client_fd) {
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx == -1) return 0;
+    
+    client_info_t *client = &server_state.clients[client_idx];
+    
+    // Il client deve essere in partita
+    if (client->status != CLIENT_IN_GAME || client->game_index == -1) {
+        return 0;
+    }
+    
+    game_session_t *game = &server_state.games[client->game_index];
+    
+    // Verifica se la partita è finita per pareggio
+    if (!game->active || game->last_result != RESULT_DRAW) {
+        return 0;
+    }
+    
+    LOG_INFO("Auto-cleanup partita finita per pareggio: client '%s' (FD=%d) esce dalla partita",
+             client->name, client_fd);
+    
+    // Determina l'avversario
+    int opponent_fd = -1;
+    for (int i = 0; i < 2; i++) {
+        if (game->player_fds[i] != client_fd) {
+            opponent_fd = game->player_fds[i];
+            break;
+        }
+    }
+    
+    // Cleanup della partita
+    cleanup_game(game);
+    
+    // Notifica l'avversario che non ci sarà rematch (l'altro giocatore ha fatto un altro comando)
+    if (opponent_fd > 0) {
+        notify_no_rematch_t notify;
+        notify.notify_type = NOTIFY_NO_REMATCH;
+        
+        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_DEBUG("NO_REMATCH inviato a FD=%d (avversario ha lasciato partita finita)", opponent_fd);
+    }
+    
+    return 1;
 }
 
 // ============================================================================
@@ -595,6 +650,9 @@ void handle_create_game(int client_fd, uint32_t req_seq_id) {
     
     pthread_mutex_lock(&server_state.mutex);
     
+    // Auto-cleanup se il client è in una partita finita per pareggio
+    auto_cleanup_finished_draw_game(client_fd);
+    
     // Trova il client
     int client_idx = find_client_by_fd(client_fd);
     if (client_idx == -1) {
@@ -666,6 +724,9 @@ void handle_list_games(int client_fd, uint32_t req_seq_id) {
     LOG_DEBUG("handle_list_games chiamato da FD=%d, req_seq=%u", client_fd, req_seq_id);
     
     pthread_mutex_lock(&server_state.mutex);
+
+    // Auto-cleanup se il client è in una partita finita per pareggio
+    auto_cleanup_finished_draw_game(client_fd);
 
     // Trova il client
     int client_idx = find_client_by_fd(client_fd);
@@ -756,6 +817,9 @@ void handle_join_game(int client_fd, const void *payload, uint16_t length, uint3
     response.game_id[0] = '\0';
     
     pthread_mutex_lock(&server_state.mutex);
+    
+    // Auto-cleanup se il client è in una partita finita per pareggio
+    auto_cleanup_finished_draw_game(client_fd);
     
     // Trova il client
     int client_idx = find_client_by_fd(client_fd);
@@ -1117,9 +1181,19 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
             LOG_DEBUG("GAME_END inviato a FD=%d, result=%d", player_fds[i], notify.result);
         }
         
-        // Cleanup partita
         pthread_mutex_lock(&server_state.mutex);
-        cleanup_game(game);
+        
+        // Se pareggio: mantieni partita per rematch
+        if (winner == 2) {
+            game->last_result = RESULT_DRAW;
+            game->rematch_requested[0] = 0;
+            game->rematch_requested[1] = 0;
+            LOG_INFO("Pareggio: partita mantenuta per rematch (game_id='%s')", game->state.game_id);
+        } else {
+            // Vittoria/sconfitta: cleanup immediato
+            cleanup_game(game);
+        }
+        
         pthread_mutex_unlock(&server_state.mutex);
     } else {
         // Invia risposta al giocatore
@@ -1188,6 +1262,153 @@ void handle_leave_game(int client_fd, uint32_t req_seq_id) {
     send_notify_after_cleanup_client(notify_data);
 }
 
+void handle_rematch(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_rematch chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
+    
+    response_rematch_t response;
+    response.status = STATUS_ERROR;
+    response.error_code = ERR_INTERNAL;
+    memset(response.game_id, 0, MAX_GAME_ID_LEN);
+    
+    pthread_mutex_lock(&server_state.mutex);
+    
+    // Trova client
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx == -1) {
+        LOG_WARN("Client FD=%d non trovato", client_fd);
+        response.error_code = ERR_NOT_IN_GAME;
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+
+    client_info_t *client = &server_state.clients[client_idx];
+
+    // Deve essere in partita
+    if (client->status != CLIENT_IN_GAME || client->game_index == -1) {
+        LOG_WARN("Client FD=%d non in partita", client_fd);
+        response.error_code = ERR_NOT_IN_GAME;
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    game_session_t *game = &server_state.games[client->game_index];
+    
+    // Deve essere una partita finita con pareggio
+    if (!game->active || !(game_is_finished(&game->state)) || game->last_result != RESULT_DRAW) {
+        LOG_WARN("Partita non disponibile per rematch per client FD=%d (result=%d)", client_fd, game->last_result);
+        response.error_code = ERR_GAME_NOT_FINISHED;
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    int player_idx = client->player_index;
+    int opponent_idx = 1 - player_idx;
+    int opponent_fd = game->player_fds[opponent_idx];
+    
+    LOG_INFO("Rematch richiesto da '%s' (FD=%d, player=%d) in partita '%s'", 
+             client->name, client_fd, player_idx, game->state.game_id);
+    
+    // Marca che questo giocatore ha richiesto rematch
+    game->rematch_requested[player_idx] = 1;
+    
+    // Copia game_id per la risposta
+    strncpy(response.game_id, game->state.game_id, MAX_GAME_ID_LEN - 1);
+    response.game_id[MAX_GAME_ID_LEN - 1] = '\0';
+    
+    // Verifica se entrambi hanno richiesto rematch
+    if (game->rematch_requested[0] && game->rematch_requested[1]) {
+        LOG_INFO("Entrambi i giocatori hanno accettato il rematch, riavvio partita '%s'", game->state.game_id);
+        
+        // Inverto chi inizia la nuova partita
+        int player0_fd = game->player_fds[1];
+        int player1_fd = game->player_fds[0];
+        game->player_fds[0] = player0_fd; 
+
+        char player0_name[MAX_PLAYER_NAME];
+        strncpy(player0_name, game->state.players[1], MAX_PLAYER_NAME - 1);
+        player0_name[MAX_PLAYER_NAME - 1] = '\0';
+
+        char player1_name[MAX_PLAYER_NAME];
+        strncpy(player1_name, game->state.players[0], MAX_PLAYER_NAME - 1); 
+        player1_name[MAX_PLAYER_NAME - 1] = '\0';
+
+        // Resetta lo stato della partita
+        game->last_result = RESULT_NONE;
+        game->rematch_requested[0] = 0;
+        game->rematch_requested[1] = 0;
+
+        game_init(&game->state, game->state.game_id, player0_name);
+         
+        if (game_add_player(&game->state, player1_name)) {  
+            game->player_fds[1] = player1_fd;
+            
+            // Aggiorna stato players
+            int player0_idx = find_client_by_fd(player0_fd);
+            if (player0_idx != -1) {
+                client_info_t *player0 = &server_state.clients[player0_idx];
+                player0->player_index = 0;
+            }
+
+            int player1_idx = find_client_by_fd(player1_fd);
+            if (player1_idx != -1) {
+                client_info_t *player1 = &server_state.clients[player1_idx];
+                player1->player_index = 1;
+            }
+            
+            // -------- Prepara dati unicamente per le notifiche --------
+            int player_fds[2] = { player0_fd, player1_fd };
+            char player_names[2][MAX_PLAYER_NAME];
+            strncpy(player_names[0], game->state.players[0], MAX_PLAYER_NAME - 1);
+            player_names[0][MAX_PLAYER_NAME - 1] = '\0';
+            strncpy(player_names[1], game->state.players[1], MAX_PLAYER_NAME - 1);
+            player_names[1][MAX_PLAYER_NAME - 1] = '\0';
+
+            char game_id[MAX_GAME_ID_LEN];
+            strncpy(game_id, game->state.game_id, MAX_GAME_ID_LEN - 1);
+            game_id[MAX_GAME_ID_LEN - 1] = '\0';
+            // ------ (notify non deve essere dentro mutex) ------
+            
+            pthread_mutex_unlock(&server_state.mutex);
+            
+            // Invia risposta
+            response.status = STATUS_OK;
+            response.error_code = ERR_NONE;
+            protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+            
+            // Notifica inizio partita a entrambi
+            const char *player_names_ptrs[2] = {player_names[0], player_names[1]};
+            notify_game_start(player_fds, player_names_ptrs);
+        } else {
+            LOG_ERROR("Errore aggiunta giocatore alla partita");
+            pthread_mutex_unlock(&server_state.mutex);
+            protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+            return;
+        }
+    } else {
+        // Solo un giocatore ha richiesto: notifica l'avversario
+        LOG_INFO("In attesa che l'avversario (FD=%d) accetti il rematch", opponent_fd);
+        
+        pthread_mutex_unlock(&server_state.mutex);
+        
+        // Invia risposta al richiedente
+        response.status = STATUS_OK;
+        response.error_code = ERR_NONE;
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        
+        // Notifica l'avversario che è stato richiesto un rematch
+        notify_rematch_request_t notify;
+        notify.notify_type = NOTIFY_REMATCH_REQUEST;
+        strncpy(notify.player, client->name, MAX_PLAYER_NAME - 1);
+        notify.player[MAX_PLAYER_NAME - 1] = '\0';
+        
+        protocol_send(opponent_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
+        LOG_DEBUG("REMATCH_REQUEST inviato a FD=%d da '%s'", opponent_fd, client->name);
+    }
+}
+
 void handle_quit(int client_fd, uint32_t req_seq_id) {
     LOG_DEBUG("handle_quit chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
     
@@ -1196,6 +1417,10 @@ void handle_quit(int client_fd, uint32_t req_seq_id) {
     response.error_code = ERR_NONE;
 
     pthread_mutex_lock(&server_state.mutex);
+    
+    // Auto-cleanup se il client è in una partita finita per pareggio
+    auto_cleanup_finished_draw_game(client_fd);
+    
     cleanup_notify_data_t notify_data = cleanup_client_from_game_state(client_fd);
     pthread_mutex_unlock(&server_state.mutex);
 

@@ -124,6 +124,13 @@ int send_make_move_request(int pos);
 int send_leave_game_request(void);
 
 /**
+ * Invia richiesta di rematch (nuova partita con lo stesso avversario)
+ * 
+ * @return 0 se successo, -1 se errore
+ */
+int send_rematch_request(void);
+
+/**
  * Invia richiesta di disconnessione dal server
  * 
  * @return 0 se successo, -1 se errore
@@ -198,6 +205,13 @@ void handle_response_make_move(const void *payload);
  * @param payload Puntatore al payload della risposta
  */
 void handle_response_leave_game(const void *payload);
+
+/**
+ * Gestisce risposta alla richiesta di rematch
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_rematch(const void *payload);
 
 /**
  * Gestisce risposta alla richiesta di quit
@@ -281,8 +295,29 @@ void handle_game_over_notification(const notify_game_end_t *notify);
  * Notifica l'utente che l'avversario ha lasciato la partita
  * e resetta lo stato del client a CLIENT_REGISTERED.
  * 
+ * @param notify Puntatore alla notifica NOTIFY_OPPONENT_LEFT
+ * 
  */
 void handle_opponent_left_notification(const notify_opponent_left_t *notify);
+
+/**
+ * Gestisce notifica di richiesta di rematch
+ * 
+ * Notifica l'utente che l'avversario ha richiesto un rematch
+ * 
+ * @param notify Puntatore alla notifica NOTIFY_REMATCH_REQUEST
+ */
+void handle_rematch_request_notification(const notify_rematch_request_t *notify);
+
+/**
+ * Gestisce notifica di rifiuto rematch
+ * 
+ * Notifica l'utente che l'avversario ha rifiutato il rematch
+ * (ha eseguito un altro comando) e resetta lo stato a CLIENT_REGISTERED.
+ * 
+ * @param notify Puntatore alla notifica NOTIFY_NO_REMATCH
+ */
+void handle_no_rematch_notification(const notify_no_rematch_t *notify);
 
 // ============================================================================
 // MENU INTERATTIVO

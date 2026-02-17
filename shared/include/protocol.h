@@ -53,7 +53,7 @@ typedef struct __attribute__((packed)) {
 #define MSG_ACCEPT_JOIN     5   
 #define MSG_MAKE_MOVE       6   
 #define MSG_LEAVE_GAME      7   
-#define MSG_NEW_GAME        8   
+#define MSG_REMATCH         8   
 #define MSG_QUIT            9   
 
 /**
@@ -107,7 +107,7 @@ typedef struct __attribute__((packed)) {
  */
 
 /**
- * MSG_NEW_GAME: Richiesta nuova partita (no payload, solo header)
+ * MSG_REMATCH: Richiesta nuova partita (no payload, solo header)
  */
 
 /**
@@ -142,6 +142,7 @@ typedef enum {
     ERR_NOT_YOUR_TURN = 9,
     ERR_INVALID_MOVE = 10,
     ERR_CELL_OCCUPIED = 11,
+    ERR_GAME_NOT_FINISHED = 12,
     ERR_NOT_REGISTERED = 20,
     ERR_ALREADY_REGISTERED = 21,
     ERR_INVALID_NAME = 22,
@@ -214,13 +215,13 @@ typedef response_generic_t response_make_move_t;
 typedef response_generic_t response_leave_game_t;
 
 /** 
- * Risposta a MSG_NEW_GAME
+ * Risposta a MSG_REMATCH
  */
 typedef struct __attribute__((packed)) {
     uint8_t status;
     uint8_t error_code;
     char game_id[MAX_GAME_ID_LEN];
-} response_new_game_t;
+} response_rematch_t;
 
 /** 
  * Risposta a MSG_QUIT (alias per chiarezza)
@@ -242,7 +243,9 @@ typedef enum {
     NOTIFY_GAME_START = 104,     
     NOTIFY_MOVE_MADE = 105,      
     NOTIFY_GAME_END = 106,       
-    NOTIFY_OPPONENT_LEFT = 107,  
+    NOTIFY_OPPONENT_LEFT = 107,
+    NOTIFY_REMATCH_REQUEST = 108,
+    NOTIFY_NO_REMATCH = 109,
 } notify_type_t;
 
 /** 
@@ -316,6 +319,21 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;    
 } notify_opponent_left_t;
+
+/**
+ * NOTIFY_REMATCH_REQUEST: L'avversario ha richiesto rematch
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;
+    char player[MAX_PLAYER_NAME]; 
+} notify_rematch_request_t;
+
+/**
+ * NOTIFY_NO_REMATCH: L'avversario ha rifiutato il rematch (ha fatto un altro comando)
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;
+} notify_no_rematch_t;
 
 // ============================================================================
 // FUNZIONI DI UTILITÀ - HEADER

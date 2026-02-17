@@ -141,7 +141,7 @@ LSO_Project/
 - [x] Header fisso 7 bytes + payload variabile
 - [x] Network byte order per interoperabilità
 - [x] 9 tipi di richieste client
-- [x] 8 tipi di notifiche asincrone
+- [x] 10 tipi di notifiche asincrone
 - [x] Gestione errori con codici specifici
 
 ---

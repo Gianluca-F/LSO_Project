@@ -65,7 +65,7 @@ typedef struct __attribute__((packed)) {
 | 5 | `MSG_ACCEPT_JOIN` | `payload_accept_join_t` | Accetta/rifiuta join request |
 | 6 | `MSG_MAKE_MOVE` | `payload_make_move_t` | Effettua mossa |
 | 7 | `MSG_LEAVE_GAME` | (nessuno) | Abbandona partita |
-| 8 | `MSG_NEW_GAME` | (nessuno) | Richiesta nuova partita |
+| 8 | `MSG_REMATCH` | (nessuno) | Richiesta nuova partita |
 | 9 | `MSG_QUIT` | (nessuno) | Disconnessione |
 
 ### Server → Client (Response/Notify)
@@ -236,13 +236,13 @@ Payload: [05]  (mossa al centro)
 
 ---
 
-### 8. MSG_NEW_GAME (8)
+### 8. MSG_REMATCH (8)
 
-**Scopo**: Richiede una nuova partita dopo che una è terminata (stesso avversario).
+**Scopo**: Richiede una nuova partita dopo che una è terminata in pareggio (stesso avversario).
 
 **Payload**: Nessuno
 
-**Risposta**: `response_new_game_t`
+**Risposta**: `response_rematch_t`
 
 ---
 
@@ -285,6 +285,7 @@ typedef struct __attribute__((packed)) {
 | 9 | `ERR_NOT_YOUR_TURN` | Non è il tuo turno |
 | 10 | `ERR_INVALID_MOVE` | Mossa non valida |
 | 11 | `ERR_CELL_OCCUPIED` | Cella già occupata |
+| 12 | `ERR_GAME_NOT_FINISHED` | Partita non ancora finita |
 | 20 | `ERR_NOT_REGISTERED` | Non registrato |
 | 21 | `ERR_ALREADY_REGISTERED` | Già registrato |
 | 22 | `ERR_INVALID_NAME` | Nome non valido |
@@ -395,6 +396,8 @@ Tutte le notifiche hanno header con `msg_type = MSG_NOTIFY` e il primo byte del 
 | 105 | `NOTIFY_MOVE_MADE` | Avversario ha mosso |
 | 106 | `NOTIFY_GAME_END` | Partita terminata |
 | 107 | `NOTIFY_OPPONENT_LEFT` | Avversario ha abbandonato |
+| 108 | `NOTIFY_REMATCH_REQUEST` | Avversario vuole rigiocare |
+| 109 | `NOTIFY_NO_REMATCH` | Avversario ha rifiutato rematch |
 
 ---
 
@@ -408,7 +411,7 @@ typedef struct __attribute__((packed)) {
     uint8_t notify_type;               // 100
     char game_id[MAX_GAME_ID_LEN];     // 16 bytes
     char creator[MAX_PLAYER_NAME];     // 32 bytes
-} notify_game_created_t;  // 49 bytes
+} notify_game_created_t;    // 49 bytes
 ```
 
 ---
@@ -420,9 +423,9 @@ typedef struct __attribute__((packed)) {
 **Payload**:
 ```c
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;          // 101
+    uint8_t notify_type;             // 101
     char opponent[MAX_PLAYER_NAME];  // 32 bytes
-} notify_join_request_t;  // 33 bytes
+} notify_join_request_t;    // 33 bytes
 ```
 
 ---
@@ -436,8 +439,8 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;               // 102
     uint8_t is_cancelled_by_joiner;    // 1=joiner, 0=creatore
-    char opponent[MAX_PLAYER_NAME];
-} notify_join_cancellation_t;
+    char opponent[MAX_PLAYER_NAME];    // 32 bytes
+} notify_join_cancellation_t;   // 34 bytes
 ```
 
 ---
@@ -451,8 +454,8 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;            // 103
     uint8_t accepted;               // 1=accettato, 0=rifiutato
-    char game_id[MAX_GAME_ID_LEN];
-} notify_join_response_t;
+    char game_id[MAX_GAME_ID_LEN];  // 16 bytes
+} notify_join_response_t;   // 18 bytes
 ```
 
 ---
@@ -467,8 +470,8 @@ typedef struct __attribute__((packed)) {
     uint8_t notify_type;            // 104
     uint8_t your_symbol;            // 'X' o 'O'
     uint8_t first_player;           // 'X' o 'O' (chi inizia)
-    char opponent[MAX_PLAYER_NAME];
-} notify_game_start_t;
+    char opponent[MAX_PLAYER_NAME]; // 32 bytes
+} notify_game_start_t;  // 35 bytes
 ```
 
 **Note**: Il giocatore 'X' inizia sempre per primo
@@ -484,9 +487,9 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;                // 105
     uint8_t pos;                        // Posizione 1-9
-    char player[MAX_PLAYER_NAME];       // Chi ha mosso
+    char player[MAX_PLAYER_NAME];       // Chi ha mosso (32 bytes)
     char board[BOARD_SIZE];             // Stato aggiornato (9 bytes)
-} notify_move_made_t;
+} notify_move_made_t;   // 43 bytes
 ```
 
 **board[9]**: Contiene 'X', 'O', o ' ' (spazio per cella vuota)
@@ -503,7 +506,7 @@ typedef struct __attribute__((packed)) {
     uint8_t notify_type;     // 106
     uint8_t result;          // RESULT_WIN (1), RESULT_LOSE (2), RESULT_DRAW (3)
     char board[BOARD_SIZE];  // Stato finale (9 bytes)
-} notify_game_end_t;
+} notify_game_end_t;    // 11 bytes
 ```
 
 ---
@@ -515,7 +518,32 @@ typedef struct __attribute__((packed)) {
 **Payload**:
 ```c
 typedef struct __attribute__((packed)) {
-    uint8_t notify_type;  // 107
+    uint8_t notify_type;   // 107
+} notify_opponent_left_t; // 1 byte
+```
+---
+
+#### NOTIFY_REMATCH_REQUEST (108)
+
+**Quando**: L'avversario ha chiesto rivincita dopo un pareggio
+
+**Payload**:
+```c
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;          // 108
+    char player[MAX_PLAYER_NAME]; // Chi ha chiesto rivincita (32 bytes)
+} notify_rematch_request_t; // 33 bytes
+```
+---
+
+#### NOTIFY_NO_REMATCH (109)
+
+**Quando**: Dopo un pareggio, un giocatore vuole fare altro, non la rivincita
+
+**Payload**:
+```c
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;    // 109
 } notify_opponent_left_t;  // 1 byte
 ```
 

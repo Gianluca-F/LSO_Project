@@ -292,6 +292,29 @@ int send_leave_game_request(void) {
     return 0;
 }
 
+int send_rematch_request(void) {
+    if (client_state.socket_fd < 0) {
+        LOG_ERROR("Non connesso al server");
+        return -1;
+    }
+    
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.last_request_type = MSG_REMATCH;
+    uint32_t seq = client_state.seq_id++;
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    int ret = protocol_send(client_state.socket_fd, MSG_REMATCH, 
+                           NULL, 0, seq);
+    
+    if (ret < 0) {
+        LOG_ERROR("Errore invio MSG_REMATCH");
+        return -1;
+    }
+    
+    LOG_DEBUG("Inviato MSG_REMATCH seq=%u", seq);
+    return 0;
+}
+
 int send_quit_request(void) {
     if (client_state.socket_fd < 0) {
         LOG_ERROR("Non connesso al server");
@@ -393,6 +416,9 @@ void *notification_thread_func(void *arg) {
                     case MSG_LEAVE_GAME:
                         handle_response_leave_game(payload);
                         break;
+                    case MSG_REMATCH:
+                        handle_response_rematch(payload);
+                        break;
                     case MSG_QUIT:
                         handle_response_quit(payload);
                         break;
@@ -439,6 +465,12 @@ void *notification_thread_func(void *arg) {
                     break;
                 case NOTIFY_OPPONENT_LEFT:
                     handle_opponent_left_notification((notify_opponent_left_t *)payload);
+                    break;
+                case NOTIFY_REMATCH_REQUEST:
+                    handle_rematch_request_notification((notify_rematch_request_t *)payload);
+                    break;
+                case NOTIFY_NO_REMATCH:
+                    handle_no_rematch_notification((notify_no_rematch_t *)payload);
                     break;
                 default:
                     LOG_WARN("Tipo di notifica sconosciuto: %d", *notify_type);
@@ -579,6 +611,13 @@ void handle_response_leave_game(const void *payload) {
     fflush(stdout);
 }
 
+void handle_response_rematch(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    printf("\n✅ Richiesta di rematch inviata." 
+           "\n   In attesa della risposta dell'avversario...");
+    fflush(stdout);
+}
+
 void handle_response_quit(const void *payload) {
     (void)payload;  // Non utilizzato per questa risposta
     
@@ -629,6 +668,9 @@ void handle_response_error(uint8_t error_code) {
         case ERR_CELL_OCCUPIED:
             printf("cella già occupata.");
             break;
+        case ERR_GAME_NOT_FINISHED:
+            printf("la partita non è ancora finita. Non puoi richiedere un rematch.");
+            break;
         case ERR_NOT_REGISTERED:
             printf("non sei registrato.");
             break;
@@ -669,14 +711,14 @@ void handle_response_error(uint8_t error_code) {
 // ============================================================================
 
 void handle_game_created_notification(const notify_game_created_t *notify) {
-    printf("[NOTIFICA] Partita creata! ID: %s <\n", notify->game_id);
-    printf("In attesa di un avversario...");
+    printf("[NOTIFICA] Partita creata! ID: %s <", notify->game_id);
+    printf("\n  In attesa di un avversario...");
     LOG_INFO("Partita creata: %s", notify->game_id);
 }
 
 void handle_join_request_notification(const notify_join_request_t *notify) {
-    printf("[NOTIFICA] %s vuole unirsi alla tua partita! <\n", notify->opponent);
-    printf("Accetti? Invia il comando 'accept' per accettare o 'reject' per rifiutare.");
+    printf("[NOTIFICA] %s vuole unirsi alla tua partita! <", notify->opponent);
+    printf("\n  Accetti? Invia il comando 'accept' per accettare o 'reject' per rifiutare.");
     fflush(stdout);
     LOG_INFO("Richiesta join da: %s", notify->opponent);
 }
@@ -810,8 +852,6 @@ void handle_game_over_notification(const notify_game_end_t *notify) {
     char old_game_id[MAX_GAME_ID_LEN];
     strcpy(old_game_id, client_state.current_game_id);
     client_state.current_game_id[0] = '\0';
-    //NOTE: Impostare il caso di NEW_GAME se la partita è finita in pareggio
-    pthread_mutex_unlock(&client_state.mutex);
     
     printf("\r \r");
     printf("========================================\n");
@@ -819,24 +859,28 @@ void handle_game_over_notification(const notify_game_end_t *notify) {
     printf("========================================\n");
     
     game_print_board(&client_state.local_game_state);
+    pthread_mutex_unlock(&client_state.mutex);
     
     switch (notify->result) {
         case RESULT_WIN:
-            printf("\n🎉 HAI VINTO! Complimenti! 🎉\n");
+            printf("\n🎉 HAI VINTO! Complimenti! 🎉"
+                   "\n Puoi creare tu una partita o vedere quelle in attesa di giocatori!");
             break;
         case RESULT_LOSE:
-            printf("\n😢 Hai perso. Ritenta!\n");
+            printf("\n😢 Hai perso. Ritenta!"
+                   "\n Crea una partita o guarda quelle disponibili per una rivincita!");
             break;
         case RESULT_DRAW:
-            printf("\n🤝 PAREGGIO! Partita equilibrata.\n");
+            printf("\n🤝 PAREGGIO! Partita equilibrata."
+                   "\n Desideri una rivincita? Scrivi 'rematch'!");
             break;
         default:
-            printf("\nPartita terminata.\n");
+            printf("\nPartita terminata.");
             break;
     }
     
-    printf("========================================\n\n");
-    
+    printf("\n\n========================================\n");
+
     LOG_INFO("Partita %s terminata: result=%d", old_game_id, notify->result);
 }
 
@@ -854,6 +898,20 @@ void handle_opponent_left_notification(const notify_opponent_left_t *notify) {
     client_state.current_game_id[0] = '\0';
     pthread_mutex_unlock(&client_state.mutex);
     printf("\nSei tornato al menu principale.\n");
+}
+
+void handle_rematch_request_notification(const notify_rematch_request_t *notify) {
+    LOG_INFO("L'avversario ha richiesto un rematch");
+    printf("[NOTIFICA] %s vuole continuare a sfidarti! <\n", notify->player);
+    fflush(stdout);
+}
+
+void handle_no_rematch_notification(const notify_no_rematch_t *notify) {
+    LOG_INFO("L'avversario ha rifiutato il rematch");
+    uint8_t type = notify->notify_type; // Per togliere warning unused
+    (void)type;
+    printf("[NOTIFICA] L'avversario ha abbandonato la lobby. <");
+    printf("\n   Sei tornato al menu principale.\n");
 }
 
 // ============================================================================
@@ -1061,6 +1119,21 @@ void client_run(void) {
             
             if (send_leave_game_request() == 0) {
                 printf("Richiesta di abbandono inviata...\n");
+            } else {
+                printf("Errore nell'invio della richiesta.\n");
+            }
+        }
+        // === REMATCH ===
+        else if (strcmp(cmd, "rematch") == 0) {
+            if (client_state.state != CLIENT_REGISTERED) {
+                printf("❌ Errore: puoi richiedere un rematch solo dopo\n"
+                       "   che una partita è terminata.\n");
+                printf("\n> ");
+                continue;
+            }
+            
+            if (send_rematch_request() == 0) {
+                printf("Richiesta di rematch inviata...\n");
             } else {
                 printf("Errore nell'invio della richiesta.\n");
             }
