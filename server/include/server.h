@@ -176,7 +176,7 @@ int find_game_by_id(const char *game_id);
  * @return Indice nell'array games, o -1 se il client non è in partita
  * @note Richiede che server_state.mutex sia già acquisito dal chiamante
  */
-int find_game_by_client_fd(int fd); //NOTE: not used
+int find_game_by_client_fd(int fd); //NOTE: future proof
 
 /**
  * Crea una nuova partita
@@ -316,10 +316,20 @@ int find_creator_for_join_cancellation(int joiner_fd);
 void cleanup_pending_join(int client_fd);
 
 /**
+ * Tipo di notifica da inviare dopo cleanup di un client
+ */
+typedef enum {
+    CLEANUP_NOTIFY_NONE = 0,
+    CLEANUP_NOTIFY_OPPONENT_LEFT = 1,
+    CLEANUP_NOTIFY_JOIN_CANCELLED_BY_JOINER = 2,
+    CLEANUP_NOTIFY_JOIN_CANCELLED_BY_CREATOR = 3
+} cleanup_notify_type_t;
+
+/**
  * Struttura per dati di notifica dopo cleanup di un client
  */
 typedef struct {
-    int type; // 0=nessuna, 1=opponent_left, 2=join_cancellation_by_joiner, 3=join_cancellation_by_creator
+    cleanup_notify_type_t type;
     int target_fd;
     char opponent_name[MAX_PLAYER_NAME];
 } cleanup_notify_data_t;

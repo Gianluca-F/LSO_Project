@@ -19,7 +19,7 @@ typedef struct {
     int max_clients;
     int max_games;
     
-    // Timeout //NOTE: Non usati al momento
+    // Timeout //NOTE: future proof
     int connection_timeout;
     int read_timeout;
     
