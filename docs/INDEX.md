@@ -21,6 +21,7 @@ Se vuoi **comprendere**, **modificare** o **estendere** il codice:
    - Strutture dati principali
    - Componenti e responsabilità
    - Thread safety e sincronizzazione
+   - Docker e docker-compose
 
 2. **Protocollo**: [protocol.md](protocol.md) - Specifica dettagliata della comunicazione
    - Formato messaggi binari
@@ -56,16 +57,18 @@ Se vuoi **comprendere**, **modificare** o **estendere** il codice:
 ### Installazione e Setup
 - [README.md - Quick Start](../README.md#-quick-start)
 - [developer_guide.md - Setup Ambiente](developer_guide.md#-setup-ambiente-di-sviluppo)
+- [developer_guide.md - Setup Docker](developer_guide.md#setup-docker)
 
 ### Architettura
 - [architecture.md - Diagrammi](architecture.md#-architettura-del-sistema)
 - [architecture.md - Componenti](architecture.md#-componenti-principali)
 - [architecture.md - Thread Safety](architecture.md#-thread-safety-e-sincronizzazione)
+- [architecture.md - Architettura Docker](architecture.md#-architettura-docker)
 
 ### Protocollo di Rete
 - [protocol.md - Formato Messaggi](protocol.md#-formato-dei-messaggi)
 - [protocol.md - Tipi di Messaggio](protocol.md#-tipi-di-messaggio)
-- [protocol.md - Diagrammi di Sequenza](protocol.md#-diagrammi-di-sequenza)
+- [protocol.md - Sequence Diagram UML](protocol.md#-sequence-diagram-uml)
 
 ### Sviluppo
 - [developer_guide.md - Moduli](developer_guide.md#-moduli-principali)
@@ -99,13 +102,13 @@ Se vuoi **comprendere**, **modificare** o **estendere** il codice:
 
 ## 📊 Statistiche Documentazione
 
-| Documento | Dimensione | Pagine (stimate) | Livello |
-|-----------|-----------|------------------|---------|
-| README.md | ~8 KB | 3-4 | Principiante |
-| architecture.md | ~19 KB | 8-10 | Intermedio |
-| protocol.md | ~22 KB | 10-12 | Avanzato |
-| developer_guide.md | ~28 KB | 14-18 | Avanzato |
-| **TOTALE** | **~77 KB** | **~40 pagine** | - |
+| Documento | Dimensione | Livello |
+|-----------|-----------|---------|
+| README.md | ~8 KB | Principiante |
+| architecture.md | ~23 KB | Intermedio |
+| protocol.md | ~22 KB | Avanzato |
+| developer_guide.md | ~28 KB | Avanzato |
+| **TOTALE** | **~77 KB** | - |
 
 ---
 
@@ -168,7 +171,7 @@ key=value
 ## 📝 Note sulla Documentazione
 
 - **Versione**: 1.5
-- **Ultima modifica**: 04 Febbraio 2026
+- **Ultima modifica**: 20 Febbraio 2026
 - **Formato**: Markdown
 - **Encoding**: UTF-8
 - **Linguaggio**: Italiano (con termini tecnici in inglese)

@@ -670,7 +670,7 @@ int protocol_validate_move(uint8_t pos);
 
 ---
 
-## 📊 Diagrammi di Sequenza
+## 📊 Sequence Diagram UML
 
 ### Scenario: Creazione e Join Partita
 

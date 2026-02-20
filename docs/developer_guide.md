@@ -37,6 +37,49 @@ cd server && make clean && make CFLAGS="-Wall -Wextra -g -pthread"
 cd ../client && make clean && make CFLAGS="-Wall -Wextra -g -pthread"
 ```
 
+### Setup Docker
+
+#### Prerequisiti Docker
+
+- **Docker** installato ([Guida installazione](https://docs.docker.com/get-docker/))
+- **Docker Compose** installato (incluso in Docker Desktop)
+
+Verifica l'installazione:
+```bash
+docker --version
+docker compose version
+```
+
+#### Avvio Rapido con Docker
+
+```bash
+# 1. Build delle immagini
+docker compose build
+
+# 2. Avvia server in background
+docker compose up -d server
+
+# 3. Verifica che sia attivo
+docker compose ps
+
+# 4. Visualizza log del server (terminale 0)
+docker compose logs -f server
+
+# 5. Avvia client 1 (terminale 1)
+docker compose run --rm client ./bin/client
+
+# 6. Avvia client 2 (terminale 2)
+docker compose run --rm client ./bin/client
+
+# 7. Entra in un container in esecuzione 
+docker exec -it tris-server /bin/bash
+
+# 8. Gioca!
+
+# 9. Ferma tutto quando hai finito
+docker compose down
+```
+
 ---
 
 ## 📁 Organizzazione del Codice

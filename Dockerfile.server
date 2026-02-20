@@ -1,0 +1,45 @@
+# Stage 1: Build
+FROM debian:bookworm-slim AS builder
+
+# Installa solo gcc, make e libc-dev per compilare
+RUN apt-get update && apt-get install -y \
+    gcc \
+    make \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Crea la directory di lavoro
+WORKDIR /app
+
+# Copia i file sorgente
+COPY shared/ /app/shared/
+COPY server/ /app/server/
+COPY Makefile /app/
+
+# Compila il server
+RUN make server
+
+# Stage 2: Runtime (immagine leggera)
+FROM debian:bookworm-slim
+
+# Installa solo le librerie runtime necessarie e tzdata per timezone
+RUN apt-get update && apt-get install -y \
+    libc6 \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# Imposta timezone di Roma
+ENV TZ=Europe/Rome
+
+# Crea struttura directory
+WORKDIR /app/server
+RUN mkdir -p bin config logs
+
+# Copia solo il binario compilato dallo stage di build
+COPY --from=builder /app/server/bin/server /app/server/bin/server
+
+# Copia eventuali file di configurazione di default
+COPY server/config/server.conf /app/server/config/server.conf
+
+# Comando di avvio
+CMD ["./bin/server"]

@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <errno.h>
 
 // Stato globale del client
@@ -34,33 +35,45 @@ int client_connect(const char *host, int port) {
         return -1;
     }
     
-    // Crea socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    // Risolvi hostname/IP usando getaddrinfo (supporta sia IP che nomi DNS)
+    struct addrinfo hints, *result, *rp;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;        // IPv4
+    hints.ai_socktype = SOCK_STREAM;  // TCP
+    
+    char port_str[6];
+    snprintf(port_str, sizeof(port_str), "%d", port);
+    
+    int ret = getaddrinfo(host, port_str, &hints, &result);
+    if (ret != 0) {
+        LOG_ERROR("Errore risoluzione hostname %s: %s", host, gai_strerror(ret));
+        return -1;
+    }
+    
+    // Prova a connettersi a uno degli indirizzi risolti
+    int sock = -1;
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock < 0) {
+            continue;
+        }
+        
+        if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) {
+            break; // Successo!
+        }
+        
+        close(sock);
+        sock = -1;
+    }
+    
+    freeaddrinfo(result);
+    
     if (sock < 0) {
-        LOG_ERROR("Errore creazione socket: %s", strerror(errno));
+        LOG_ERROR("Impossibile connettersi a %s:%d", host, port);
         return -1;
     }
     
-    // Prepara indirizzo server
-    struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    
-    // Converti indirizzo IP
-    if (inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0) {
-        LOG_ERROR("Indirizzo IP non valido: %s", host);
-        close(sock);
-        return -1;
-    }
-    
-    // Connetti al server
-    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        LOG_ERROR("Errore connessione al server %s:%d: %s", 
-                 host, port, strerror(errno));
-        close(sock);
-        return -1;
-    }
+    LOG_INFO("Connesso al server %s:%d", host, port);
     
     // Aggiorna stato client
     pthread_mutex_lock(&client_state.mutex);

@@ -10,22 +10,37 @@ Progetto sviluppato per il corso di **Laboratorio di Sistemi Operativi** - Unive
 - **Server multi-thread** con gestione concorrente di client e partite
 - **Protocollo binario custom** per comunicazione efficiente
 - **Sistema di notifiche asincrone** per eventi in tempo reale
-- **Game logic separata** e riutilizzabile
-- **Thread-safety** garantita con mutex
-- **Logging completo** per debugging
+- **Thread-safety** garantita tramite mutex
+- **Game logic separata** per validazione mosse e gestione stato
+- **Logging completo** per debugging e monitoring
 - **Configurazione flessibile** tramite file `.conf`
+- **Deployment Docker** con docker-compose
 
 ---
 
 ## 🚀 Quick Start
 
-### Prerequisiti
+### Opzione 1: Docker (Raccomandato)
 
-- Sistema Linux/Unix
-- Compilatore GCC
-- GNU Make
+**Prerequisiti**: Docker e Docker Compose installati
 
-### Installazione e Avvio
+```bash
+# 1. Build delle immagini
+docker-compose build
+
+# 2. Avvia il server
+docker-compose up -d server
+
+# 3. Avvia i client (in terminali separati)
+docker-compose run --rm client 
+docker-compose run --rm client 
+```
+
+---
+
+### Opzione 2: Build Nativo
+
+**Prerequisiti**: Sistema Linux/Unix, GCC, GNU Make
 
 ```bash
 # 1. Clone del progetto
@@ -148,7 +163,7 @@ LSO_Project/
 
 ## 🔨 Comandi Make
 
-```bash
+```makefile
 make all                # Compila server e client
 make server             # Solo server
 make client             # Solo client
@@ -273,6 +288,7 @@ gdb ./server/bin/server
 ### "Connection refused"
 - Verifica che il server sia in esecuzione
 - Controlla IP e porta in `client.conf`
+- Se stai utilizzando Docker, controlla `client.docker.conf`
 
 ### "Address already in use"
 ```bash

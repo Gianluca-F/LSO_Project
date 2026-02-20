@@ -11,10 +11,11 @@ Il progetto implementa un'architettura multi-threaded che permette a più giocat
 - **Server multi-thread** con gestione concorrente di client e partite
 - **Protocollo binario custom** per comunicazione efficiente
 - **Sistema di notifiche asincrone** per eventi in tempo reale
+- **Thread-safety** garantita tramite mutex
 - **Game logic separata** per validazione mosse e gestione stato
 - **Logging completo** per debugging e monitoring
 - **Configurazione flessibile** tramite file `.conf`
-- **Thread-safety** garantita tramite mutex
+- **Deployment Docker** con docker-compose
 
 ---
 
@@ -80,6 +81,7 @@ LSO_Project/
 │   │   └── client
 │   ├── config/                  # File di configurazione
 │   │   ├── client.conf          # Configurazione attiva
+│   │   ├── client.docker.conf   # Configurazione client per container
 │   │   └── client.conf.example  # Template configurazione
 │   ├── include/                 # Header file client
 │   │   ├── client.h             # API e strutture client
@@ -91,6 +93,12 @@ LSO_Project/
 │   │   ├── main.c               # Entry point e menu
 │   │   └── utils.c              # Funzioni di utilità
 │   └── Makefile                 # Build script
+│
+├── docs/                        # Documentazione
+│   ├── architecture.md          # Architettura sistema
+│   ├── developer_guide.md       # Guida agli sviluppatori
+│   ├── INDEX.md                 # Indice con link diretti
+│   └── protocol.md              # Specifica protocollo
 │
 ├── server/                      # Applicazione server
 │   ├── bin/                     # Eseguibile compilato
@@ -120,10 +128,9 @@ LSO_Project/
 │       ├── logging.c            # Implementazione logging
 │       └── protocol.c           # Implementazione protocollo
 │
-├── docs/                        # Documentazione
-│   ├── architecture.md          # Architettura sistema
-│   └── protocol.md              # Specifica protocollo
-│
+├── docker-compose.yml           # File di configurazione docker stack
+├── Dockerfile.client            # Build docker server
+├── Dockerfile.server            # Build docker client
 ├── Makefile                     # Build script principale
 └── README.md                    # Introduzione progetto
 ```
@@ -384,6 +391,8 @@ pthread_mutex_unlock(&client_state.mutex);
 
 ## ⚙️ Configurazione
 
+**Server** e **Client** utilizzano rispettivamente `server.conf` e `client.conf`, di seguito sono riportati solo degli esempi che, però, non corrispondono a quelli reali - mai caricati sulla repository di GitHub. 
+
 ### Server (`server/config/server.conf.example`)
 
 ```ini
@@ -420,13 +429,22 @@ log_level=DEBUG
 log_file=logs/client.log
 ```
 
+Si possono cambiare, per entrambi, sia indirizzo ip che porta a proprio piacimento, a patto che abbiano senso.  
+Il **log level** può essere impostato a:
+- *DEBUG*, il livello più basso;
+- *INFO*;
+- *WARNING*;
+- *ERROR*, il livello più alto.  
+
+Nel file di log, saranno stampati solo i log relativi ai livelli uguali o più alti rispetto a quello impostato nel file di configurazione.
+
 ---
 
 ## 🔨 Build System
 
 ### Makefile Principale
 
-```bash
+```makefile
 make all                # Compila server e client
 make server             # Solo server
 make client             # Solo client
@@ -459,4 +477,120 @@ protocol.c   → protocol.h, constants.h
 game_logic.c → game_logic.h, constants.h
 logging.c    → logging.h
 ```
+
+---
+
+## 🐳 Architettura Docker
+
+### Motivazioni
+
+- **Portabilità**: il sistema funziona su qualsiasi OS con Docker installato
+- **Isolamento**: dipendenze contenute, nessun conflitto con il sistema host
+- **Facilità di testing**: configurazione multi-client semplificata
+
+### Componenti Docker
+
+Le seguenti componenti, di cui qui vengono mostrati esclusivamente degli estratti, è possibile leggerle integralmente semplicemente aprendo il file col medesimo nome presente nella repository. 
+
+#### 1. Dockerfile.server
+
+```dockerfile
+# Stage 1: Build
+FROM debian:bookworm-slim AS builder
+
+# Installa solo gcc, make e libc-dev per compilare
+RUN apt-get update && apt-get install -y \
+
+# ...
+
+# Compila il server
+RUN make server
+```
+```dockerfile
+# Stage 2: Runtime
+FROM debian:bookworm-slim
+
+# Installa solo le librerie runtime necessarie e tzdata per timezone
+RUN apt-get update && apt-get install -y \
+
+# Imposta timezone di Roma
+ENV TZ=Europe/Rome
+
+# ...
+
+# Comando di avvio
+CMD ["./bin/server"]
+
+```
+
+#### 2. Dockerfile.client
+
+Molto simile al Dockerfile.server, per cui non riportato in questo estratto.
+
+**Caratteristiche in rilievo**:
+- Due fasi, una per la build del server/client tramite make, e l'altra 
+  esclusivamente per l'avvio, utilizzando l'eseguibile dalla fase 
+  precedente; ciò è più efficiente in termini di spazio, in quanto
+  all'immagine finale non sono necessari gcc o make, che appesantirebbero il
+  tutto
+- Timezone di Roma per stampare l'orario corretto nei file di log
+
+#### 3. docker-compose.yml
+
+```yaml
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "9000:9000" 
+    volumes:
+      - ./server/config:/app/server/config:ro  # Read only
+      - ./server/logs:/app/server/logs        # Log persistenti
+    networks:
+      - tris-network
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    depends_on:
+      - server
+    volumes:
+      - ./client/config/client.docker.conf:/app/client/config/client.conf:ro
+      - ./client/logs:/app/client/logs
+    networks:
+      - tris-network
+    stdin_open: true
+    tty: true
+
+networks:
+  tris-network:
+    driver: bridge
+
+```
+
+**Caratteristiche**
+
+- **Network bridge**: `tris-network` per comunicazione isolata
+- **Dipendenze**: client avviabile solo dopo il server
+- **Risoluzione DNS**: hostname `server` risolto automaticamente
+- **Volui montati**: tra i cui benefici vi sono:
+  - modifiche alla configurazione senza rebuild
+  - log consultabili direttamente su host
+  - persistenza dati tra riavvii container
+
+#### 4. .dockerignore
+```
+*.o
+*.log
+bin/
+obj/
+logs/*.log
+.git/
+.vscode/
+```
+
+**Importanza**: Evita di copiare file temporanei nel contesto Docker, riducendo dimensione immagini e tempo di build.
 

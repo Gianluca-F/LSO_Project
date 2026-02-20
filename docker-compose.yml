@@ -1,0 +1,34 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: tris-server
+    ports:
+      - "9000:9000"  # Mappa la porta 9000 del container alla porta 9000 dell'host
+    volumes:
+      - ./server/config:/app/server/config:ro  # Configurazione in sola lettura
+      - ./server/logs:/app/server/logs        # Log persistenti
+    networks:
+      - tris-network
+    restart: unless-stopped
+    stdin_open: true    # Equivalente a -i (interactive)
+    tty: true          # Equivalente a -t (TTY)
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    depends_on:
+      - server
+    volumes:
+      - ./client/config/client.docker.conf:/app/client/config/client.conf:ro
+      - ./client/logs:/app/client/logs
+    networks:
+      - tris-network
+    stdin_open: true
+    tty: true
+
+networks:
+  tris-network:
+    driver: bridge

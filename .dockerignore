@@ -1,0 +1,11 @@
+# File da ignorare nel build Docker
+*.o
+*.log
+bin/
+obj/
+logs/*.log
+.git/
+.vscode/
+*.swp
+*.swo
+*~
