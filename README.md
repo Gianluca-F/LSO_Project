@@ -1,7 +1,9 @@
 # 🎮 Tris Online - Client-Server Game
 
 Sistema client-server in C per giocare al **Tris (Tic-Tac-Toe)** online.  
-Progetto sviluppato per il corso di **Laboratorio di Sistemi Operativi** - Università di Napoli Federico II.
+Progetto sviluppato per il corso di **Laboratorio di Sistemi Operativi** - Università di Napoli Federico II.  
+
+>**Premessa**: prima di procedere oltre, si tenga presente che parte della documentazione è stata scritta mediante utilizzo di *Claude Sonnet 4.5*,  strumento ritenuto idoneo ai fini di fornire una lettura scorrevole e più "accattivante". Ciò detto, è garantita la supervisione di un occhio umano per correggere ed espandere ogni singola sotto-sezione, qualora ritenuto necessario. Buona lettura!
 
 ---
 
@@ -91,37 +93,20 @@ make run-client
 
 ```
 LSO_Project/
+│
 ├── client/              # Applicazione client
-│   ├── bin/                 # Eseguibile
-│   ├── config/              # Configurazione
-│   ├── include/             # Header file
-│   ├── logs/                # Log dell'esecuzione
-│   ├── obj/                 # File oggetto
-│   ├── src/                 # Sorgenti
-│   └── Makefile
-│
 ├── server/              # Applicazione server
-│   ├── bin/                 # Eseguibile
-│   ├── config/              # Configurazione
-│   ├── include/             # Header file
-│   ├── logs/                # Log dell'esecuzione
-│   ├── obj/                 # File oggetto
-│   ├── src/                 # Sorgenti
-│   └── Makefile
-│
 ├── shared/              # Codice condiviso
-│   ├── include/             # Protocol, game logic, logging
-│   └── src/                 # Implementazioni
-│
 ├── docs/                # Documentazione
-│   ├── architecture.md      # Architettura sistema
-│   ├── protocol.md          # Specifica protocollo
-│   ├── INDEX.md             # Indice documentazione
-│   └── developer_guide.md   # Guida sviluppatore
 │
+├── docker-compose.yml   # File di configurazione docker stack
+├── Dockerfile.client    # Build docker server
+├── Dockerfile.server    # Build docker client
 ├── Makefile             # Build principale
 └── README.md            # Questo file
 ```
+
+Vedasi [questa sezione](docs/architecture.md#-struttura-del-progetto) per una visione completa del progetto, in cui vengono illustrate anche le sottocartelle.
 
 ---
 
@@ -161,28 +146,9 @@ LSO_Project/
 
 ---
 
-## 🔨 Comandi Make
-
-```makefile
-make all                # Compila server e client
-make server             # Solo server
-make client             # Solo client
-make clean              # Pulisce object files
-make clean-all          # Pulisce tutto (inclusi log)
-make run-server         # Compila ed esegue server
-make run-client         # Compila ed esegue client
-make valgrind-server    # Esegue il server con Valgrind per memory leak detection
-make valgrind-helgrind	# Esegue il server con Helgrind per race condition detection
-make install-deps 		# Installa eventuali dipendenze necessarie
-make test       		# Esegue i test
-make help       		# Mostra questo messaggio
-```
-
----
-
 ## ⚙️ Configurazione
 
-Prima di avviare server e client, è bene scrivere i rispettivi file di configurazione (togliendo il <.example> finale).  
+Prima di avviare server e client, è bene scrivere i rispettivi file di configurazione (togliendo il <.example> finale, e, nel caso del client, scrivendo anche `client.docker.conf`).  
 Di seguito, degli esempi sul tipo di configurazione che potrebbero avere, ma si è liberi di cambiare i dati come si preferisce.
 
 
@@ -211,6 +177,7 @@ log_file=logs/client.log
 
 Documentazione completa disponibile in `docs/`:
 
+- **[INDEX.md](docs/INDEX.md)** - Indice della documentazione, da cui si consiglia caldamente il prosieguo della lettura
 - **[architecture.md](docs/architecture.md)** - Architettura del sistema, componenti, strutture dati
 - **[protocol.md](docs/protocol.md)** - Specifica dettagliata del protocollo di comunicazione
 - **[developer_guide.md](docs/developer_guide.md)** - Guida per sviluppatori, API, estensioni
@@ -237,14 +204,6 @@ Documentazione completa disponibile in `docs/`:
 make clean
 make CFLAGS="-g -O0"
 valgrind --leak-check=full ./server/bin/server
-```
-
-### Debug con GDB
-
-```bash
-gdb ./server/bin/server
-(gdb) break server.c:handle_client
-(gdb) run
 ```
 
 ---
@@ -275,11 +234,8 @@ gdb ./server/bin/server
 - [ ] Autenticazione con password
 - [ ] Persistenza partite (database)
 - [ ] Statistiche giocatori (win/loss ratio)
-- [ ] Chat in-game
-- [ ] Spectator mode
 - [ ] Matchmaking automatico
 - [ ] Client web (WebSocket)
-- [ ] Replay partite
 
 ---
 
@@ -309,8 +265,8 @@ kill -9 <PID>
 - **Linguaggio**: C (standard C99)
 - **Threading**: POSIX Threads (pthread)
 - **Network**: Berkeley Sockets (TCP/IP)
-- **Build**: GNU Make
-- **Platform**: Linux/Unix
+- **Build**: GNU Make e Docker
+- **Platform**: Linux/Unix (se con Make) / qualsiasi OS (se con Docker)
 
 ---
 
@@ -321,7 +277,7 @@ Progetto sviluppato da 3 studenti del corso di **Laboratorio di Sistemi Operativ
 - Gianluca Fiorentino;
 - Vittorio Emanuele Testa. 
   
-Università di Napoli Federico II - Anno Accademico 2024/2025
+Università di Napoli Federico II - Anno Accademico 2024/2025.
 
 ---
 
@@ -336,10 +292,4 @@ Progetto didattico - uso esclusivamente accademico.
 - Alessandra Rossi, prof.ssa del corso LSO per le specifiche del progetto
 - Comunità POSIX per la documentazione eccellente
 - Compagni di corso per il testing
-
----
-
-**Per maggiori dettagli, consulta la documentazione completa in `docs/`.**  
-Si consiglia di partire da [questo file](docs/INDEX.md) per leggere la documentazione.  
-
-Si tenga presente che parte della documentazione è stata scritta mediante utilizzo di Claude Sonnet 4.5.
+ 

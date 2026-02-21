@@ -76,7 +76,7 @@ Il progetto implementa un'architettura multi-threaded che permette a più giocat
 ```
 LSO_Project/
 │
-├── client/                      # Applicazione client
+├── client/                 # Applicazione client
 │   ├── bin/                     # Eseguibile compilato
 │   │   └── client
 │   ├── config/                  # File di configurazione
@@ -94,13 +94,13 @@ LSO_Project/
 │   │   └── utils.c              # Funzioni di utilità
 │   └── Makefile                 # Build script
 │
-├── docs/                        # Documentazione
+├── docs/                   # Documentazione
 │   ├── architecture.md          # Architettura sistema
 │   ├── developer_guide.md       # Guida agli sviluppatori
 │   ├── INDEX.md                 # Indice con link diretti
 │   └── protocol.md              # Specifica protocollo
 │
-├── server/                      # Applicazione server
+├── server/                 # Applicazione server
 │   ├── bin/                     # Eseguibile compilato
 │   │   └── server
 │   ├── config/                  # File di configurazione
@@ -117,7 +117,7 @@ LSO_Project/
 │   │   └── utils.c              # Funzioni di utilità
 │   └── Makefile                 # Build script
 │
-├── shared/                      # Codice condiviso
+├── shared/                 # Codice condiviso
 │   ├── include/                 # Header condivisi
 │   │   ├── constants.h          # Costanti del gioco
 │   │   ├── game_logic.h         # API game logic
@@ -128,11 +128,11 @@ LSO_Project/
 │       ├── logging.c            # Implementazione logging
 │       └── protocol.c           # Implementazione protocollo
 │
-├── docker-compose.yml           # File di configurazione docker stack
-├── Dockerfile.client            # Build docker server
-├── Dockerfile.server            # Build docker client
-├── Makefile                     # Build script principale
-└── README.md                    # Introduzione progetto
+├── docker-compose.yml      # File di configurazione docker stack
+├── Dockerfile.client       # Build docker server
+├── Dockerfile.server       # Build docker client
+├── Makefile                # Build script principale
+└── README.md               # Introduzione progetto
 ```
 
 ---

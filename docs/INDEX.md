@@ -104,11 +104,11 @@ Se vuoi **comprendere**, **modificare** o **estendere** il codice:
 
 | Documento | Dimensione | Livello |
 |-----------|-----------|---------|
-| README.md | ~8 KB | Principiante |
+| README.md | ~7 KB | Principiante |
 | architecture.md | ~23 KB | Intermedio |
 | protocol.md | ~22 KB | Avanzato |
 | developer_guide.md | ~28 KB | Avanzato |
-| **TOTALE** | **~77 KB** | - |
+| **TOTALE** | **~80 KB** | - |
 
 ---
 
@@ -163,15 +163,14 @@ key=value
 1. **Controlla la documentazione** appropriata (vedi sopra)
 2. **Cerca nei log** (`logs/server.log`, `logs/client.log`)
 3. **Verifica configurazione** (`*.conf`)
-4. **Controlla FAQ** nei documenti
-5. **Debug** con gli strumenti in [developer_guide.md](developer_guide.md)
+4. **Debug** con gli strumenti in [developer_guide.md](developer_guide.md)
 
 ---
 
 ## 📝 Note sulla Documentazione
 
 - **Versione**: 1.5
-- **Ultima modifica**: 20 Febbraio 2026
+- **Ultima modifica**: 21 Febbraio 2026
 - **Formato**: Markdown
 - **Encoding**: UTF-8
 - **Linguaggio**: Italiano (con termini tecnici in inglese)
