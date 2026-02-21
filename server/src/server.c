@@ -454,7 +454,7 @@ int create_game(const char *creator_name, int creator_fd) {
         if (!server_state.games[i].active) {
             game_session_t *game = &server_state.games[i];
             
-            // Genera un game_id univoco usando timestamp + indice //NOTE: c'è un modo più semplice?
+            // Genera un game_id univoco usando timestamp + indice
             char game_id[MAX_GAME_ID_LEN];
             snprintf(game_id, MAX_GAME_ID_LEN, "G%06ld%02d", time(NULL) % 1000000, i % 100);
             
