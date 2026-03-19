@@ -266,6 +266,10 @@ void *handle_client(void *arg) {
             case MSG_MAKE_MOVE:
                 handle_make_move(client_fd, payload, header.length, header.seq_id);
                 break;
+
+            case MSG_SEND_MESSAGE:
+                handle_send_message(client_fd, payload, header.length, header.seq_id);
+                break;
                 
             case MSG_LEAVE_GAME:
                 handle_leave_game(client_fd, header.seq_id);
@@ -1211,6 +1215,77 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
         LOG_DEBUG("MOVE_MADE inviato a FD=%d", opponent_fd);
     }
 
+}
+
+void handle_send_message(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_send_message chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
+    
+    response_send_message_t response;
+    response.status = STATUS_ERROR;
+    response.error_code = ERR_INTERNAL;
+    
+    pthread_mutex_lock(&server_state.mutex);
+    
+    // Trova client e partita
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx == -1) {
+        LOG_WARN("Client FD=%d non trovato", client_fd);
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    client_info_t *client = &server_state.clients[client_idx];
+    
+    // Deve essere in partita
+    if (client->status != CLIENT_IN_GAME) {
+        LOG_WARN("Client FD=%d non in partita", client_fd);
+        response.error_code = ERR_NOT_IN_GAME;
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    game_session_t *game = &server_state.games[client->game_index];
+
+    // Controlla se la partita è attiva
+    if (!game->active) {
+        LOG_ERROR("Partita non attiva per client FD=%d", client_fd);
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    // Valida payload
+    if (length < sizeof(payload_send_message_t)) {
+        LOG_ERROR("Payload MSG_SEND_MESSAGE invalido");
+        response.error_code = ERR_INVALID_PAYLOAD;
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    const payload_send_message_t *msg_req = (const payload_send_message_t*)payload;
+
+    // Invia risposta di successo al mittente
+    response.status = STATUS_OK;
+    response.error_code = ERR_NONE;
+    
+    int opponent_idx = 1 - client->player_index;
+    int opponent_fd = game->player_fds[opponent_idx];
+    
+    pthread_mutex_unlock(&server_state.mutex);
+    
+    notify_message_sent_t notify_msg;
+    notify_msg.notify_type = NOTIFY_MESSAGE_SENT;
+    strncpy(notify_msg.player, client->name, MAX_PLAYER_NAME - 1);
+    notify_msg.player[MAX_PLAYER_NAME - 1] = '\0';
+    strncpy(notify_msg.message, msg_req->message, MAX_CHAT_MESSAGE_LEN - 1);
+    notify_msg.message[MAX_CHAT_MESSAGE_LEN - 1] = '\0';
+
+    protocol_send(opponent_fd, MSG_NOTIFY, &notify_msg, sizeof(notify_msg), 0);
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+    LOG_DEBUG("MESSAGE_SENT inviato a FD=%d", opponent_fd);
 }
 
 void handle_leave_game(int client_fd, uint32_t req_seq_id) {

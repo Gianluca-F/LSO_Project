@@ -117,6 +117,14 @@ int send_accept_join_request(bool accept);
 int send_make_move_request(int pos);
 
 /**
+ * Invia un messaggio di chat in partita al server
+ * 
+ * @param message Testo del messaggio da inviare
+ * @return 0 se successo, -1 se errore
+ */
+int send_message_request(char *message);
+
+/**
  * Invia richiesta per abbandonare la partita corrente
  * 
  * @return 0 se successo, -1 se errore
@@ -200,6 +208,13 @@ void handle_response_accept_join(const void *payload);
 void handle_response_make_move(const void *payload);
 
 /**
+ * Gestisce risposta all'invio di un messaggio di chat
+ * 
+ * @param payload Puntatore al payload della risposta
+ */
+void handle_response_send_message(const void *payload);
+
+/**
  * Gestisce risposta all'abbandono partita
  * 
  * @param payload Puntatore al payload della risposta
@@ -278,6 +293,15 @@ void handle_game_start_notification(const notify_game_start_t *notify);
  * @param notify Puntatore alla notifica NOTIFY_MOVE_MADE
  */
 void handle_move_made_notification(const notify_move_made_t *notify);
+
+/**
+ * Gestisce notifica di messaggio di chat ricevuto
+ * 
+ * Visualizza il messaggio ricevuto in partita e aggiorna la console.
+ * 
+ * @param notify Puntatore alla notifica NOTIFY_MESSAGE_SENT
+ */
+void handle_message_sent_notification(const notify_message_sent_t *notify);
 
 /**
  * Gestisce notifica di fine partita

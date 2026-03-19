@@ -282,6 +282,40 @@ int send_make_move_request(int pos) {
     return 0;
 }
 
+int send_message_request(char *message) {
+    if (client_state.socket_fd < 0) {
+        LOG_ERROR("Non connesso al server");
+        return -1;
+    }
+    
+    payload_send_message_t payload;
+    memset(&payload, 0, sizeof(payload));
+    strncpy(payload.message, message, MAX_CHAT_MESSAGE_LEN - 1);
+    payload.message[MAX_CHAT_MESSAGE_LEN - 1] = '\0'; // Assicurati che sia null-terminated
+
+    size_t msg_len = strnlen(payload.message, MAX_CHAT_MESSAGE_LEN);
+    if (msg_len == 0) {
+        LOG_WARN("Messaggio vuoto, non inviato");
+        return -1;
+    }
+    
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.last_request_type = MSG_SEND_MESSAGE;
+    uint32_t seq = client_state.seq_id++;
+    pthread_mutex_unlock(&client_state.mutex);
+    
+    int ret = protocol_send(client_state.socket_fd, MSG_SEND_MESSAGE, 
+                           &payload, sizeof(payload), seq);
+    
+    if (ret < 0) {
+        LOG_ERROR("Errore invio MSG_SEND_MESSAGE");
+        return -1;
+    }
+    
+    LOG_DEBUG("Inviato MSG_SEND_MESSAGE: message='%s' seq=%u", payload.message, seq);
+    return 0;
+}
+
 int send_leave_game_request(void) {
     if (client_state.socket_fd < 0) {
         LOG_ERROR("Non connesso al server");
@@ -426,6 +460,9 @@ void *notification_thread_func(void *arg) {
                     case MSG_MAKE_MOVE:
                         handle_response_make_move(payload);
                         break;
+                    case MSG_SEND_MESSAGE:
+                        handle_response_send_message(payload);
+                        break;
                     case MSG_LEAVE_GAME:
                         handle_response_leave_game(payload);
                         break;
@@ -472,6 +509,9 @@ void *notification_thread_func(void *arg) {
                     break;
                 case NOTIFY_MOVE_MADE:
                     handle_move_made_notification((notify_move_made_t *)payload);
+                    break;
+                case NOTIFY_MESSAGE_SENT:
+                    handle_message_sent_notification((notify_message_sent_t *)payload);
                     break;
                 case NOTIFY_GAME_END:
                     handle_game_over_notification((notify_game_end_t *)payload);
@@ -607,7 +647,15 @@ void handle_response_make_move(const void *payload) {
     game_print_board(&client_state.local_game_state);
     pthread_mutex_unlock(&client_state.mutex);
     
-    printf("\nIn attesa della mossa dell'avversario...");
+    printf("\nIn attesa della mossa dell'avversario..."
+           "\nSe vuoi mandare un messaggio, utilizza send <msg>.");
+    fflush(stdout);
+}
+
+void handle_response_send_message(const void *payload) {
+    (void)payload;  // Non utilizzato per questa risposta
+    
+    printf("\n✅ Messaggio inviato con successo.");
     fflush(stdout);
 }
 
@@ -818,7 +866,8 @@ void handle_game_start_notification(const notify_game_start_t *notify) {
     game_print_board(&client_state.local_game_state);
     
     if (notify->first_player == client_state.my_symbol) {
-        printf("\nÈ il tuo turno! Usa 'move <pos>' per giocare (1-9).");
+        printf("\nÈ il tuo turno! Usa 'move <pos>' per giocare (1-9)."
+               "\nSe vuoi mandare un messaggio, utilizza send <msg>.");
     } else {
         printf("\nIn attesa della mossa dell'avversario...");
     }
@@ -848,9 +897,17 @@ void handle_move_made_notification(const notify_move_made_t *notify) {
     
     // Questa notifica arriva SOLO quando l'avversario gioca
     // Quindi dopo la sua mossa è SEMPRE il tuo turno
-    printf("\nÈ il tuo turno! Usa 'move <pos>' per giocare (1-9).");
+    printf("\nÈ il tuo turno! Usa 'move <pos>' per giocare (1-9)."
+           "\nSe vuoi mandare un messaggio, utilizza send <msg>.");
     
     LOG_DEBUG("Mossa ricevuta: pos=%d player=%s", notify->pos, notify->player);
+}
+
+void handle_message_sent_notification(const notify_message_sent_t *notify) {
+    printf("\r \r");
+    printf("\n[MESSAGGIO] %s: %s\n", notify->player, notify->message);
+    fflush(stdout);
+    LOG_INFO("Messaggio ricevuto da %s: %s", notify->player, notify->message);
 }
 
 void handle_game_over_notification(const notify_game_end_t *notify) {
@@ -947,6 +1004,7 @@ void client_run(void) {
     printf("  accept                - Accetta richiesta di join\n");
     printf("  reject                - Rifiuta richiesta di join\n");
     printf("  move <pos>            - Fai una mossa (pos: 1-9)\n");
+    printf("  send <msg>            - Invia un messaggio in partita\n");
     printf("  leave                 - Abbandona la partita corrente\n");
     printf("  quit                  - Esci dal client\n");
     printf("  help                  - Mostra questo menu\n");
@@ -1120,6 +1178,26 @@ void client_run(void) {
                 printf("Errore nell'invio della mossa.\n");
             }
         }
+        // === SEND ===
+        else if (strcmp(cmd, "send") == 0) {
+            if (parsed < 2) {
+                printf("Uso: send <messaggio>\n");
+                printf("\n> ");
+                continue;
+            }
+            
+            if (client_state.state != CLIENT_IN_GAME) {
+                printf("❌ Errore: puoi inviare messaggi solo durante una partita.\n");
+                printf("\n> ");
+                continue;
+            }
+            
+            if (send_message_request(arg) == 0) {
+                printf("Messaggio inviato...\n");
+            } else {
+                printf("Errore nell'invio del messaggio.\n");
+            }
+        }
         // === LEAVE ===
         else if (strcmp(cmd, "leave") == 0) {
             if (client_state.state != CLIENT_IN_GAME  && 
@@ -1176,6 +1254,7 @@ void client_run(void) {
             printf("  accept                - Accetta richiesta di join\n");
             printf("  reject                - Rifiuta richiesta di join\n");
             printf("  move <pos>            - Fai una mossa (pos: 1-9)\n");
+            printf("  send <msg>            - Invia un messaggio in partita\n");
             printf("  leave                 - Abbandona la partita corrente\n");
             printf("  quit                  - Esci dal client\n");
             printf("  help                  - Mostra questo menu\n");

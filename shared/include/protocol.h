@@ -52,9 +52,10 @@ typedef struct __attribute__((packed)) {
 #define MSG_JOIN_GAME       4   
 #define MSG_ACCEPT_JOIN     5   
 #define MSG_MAKE_MOVE       6   
-#define MSG_LEAVE_GAME      7   
-#define MSG_REMATCH         8   
-#define MSG_QUIT            9   
+#define MSG_SEND_MESSAGE    7   
+#define MSG_LEAVE_GAME      8   
+#define MSG_REMATCH         9   
+#define MSG_QUIT            10   
 
 /**
  * Messaggi Server -> Client
@@ -101,6 +102,13 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t pos;    // 1-9
 } payload_make_move_t;
+
+/**
+ * MSG_SEND_MESSAGE: Invia messaggio di chat in partita
+ */
+typedef struct __attribute__((packed)) {
+    char message[MAX_CHAT_MESSAGE_LEN];
+} payload_send_message_t;
 
 /**
  * MSG_LEAVE_GAME: Abbandona partita (no payload, solo header)
@@ -209,6 +217,11 @@ typedef response_generic_t response_accept_join_t;
  */
 typedef response_generic_t response_make_move_t;
 
+/* 
+ * Risposta a MSG_SEND_MESSAGE (alias per chiarezza)
+ */
+typedef response_generic_t response_send_message_t;
+
 /** 
  * Risposta a MSG_LEAVE_GAME (alias per chiarezza)
  */
@@ -241,11 +254,12 @@ typedef enum {
     NOTIFY_JOIN_CANCELLATION = 102,
     NOTIFY_JOIN_RESPONSE = 103,  
     NOTIFY_GAME_START = 104,     
-    NOTIFY_MOVE_MADE = 105,      
-    NOTIFY_GAME_END = 106,       
-    NOTIFY_OPPONENT_LEFT = 107,
-    NOTIFY_REMATCH_REQUEST = 108,
-    NOTIFY_NO_REMATCH = 109,
+    NOTIFY_MOVE_MADE = 105,  
+    NOTIFY_MESSAGE_SENT = 106,
+    NOTIFY_GAME_END = 107,       
+    NOTIFY_OPPONENT_LEFT = 108,
+    NOTIFY_REMATCH_REQUEST = 109,
+    NOTIFY_NO_REMATCH = 110,
 } notify_type_t;
 
 /** 
@@ -303,6 +317,15 @@ typedef struct __attribute__((packed)) {
     char player[MAX_PLAYER_NAME];
     char board[BOARD_SIZE];       // Stato aggiornato
 } notify_move_made_t;
+
+/**
+ * NOTIFY_MESSAGE_SENT: Messaggio di chat inviato
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t notify_type;
+    char player[MAX_PLAYER_NAME];
+    char message[MAX_CHAT_MESSAGE_LEN];
+} notify_message_sent_t;
 
 /**
  * NOTIFY_GAME_END: Fine partita

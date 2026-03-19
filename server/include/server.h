@@ -278,6 +278,16 @@ void handle_accept_join(int client_fd, const void *payload, uint16_t length, uin
 void handle_make_move(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
 
 /**
+ * Handler per MSG_SEND_MESSAGE - Invia messaggio di chat in partita
+ * 
+ * @param client_fd File descriptor del giocatore che invia il messaggio
+ * @param payload Puntatore a payload_send_message_t
+ * @param length Lunghezza del payload in bytes
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
+ */
+void handle_send_message(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
+
+/**
  * Handler per MSG_LEAVE_GAME - Abbandona partita
  * 
  * @param client_fd File descriptor del giocatore che abbandona
