@@ -125,6 +125,13 @@ int send_make_move_request(int pos);
 int send_message_request(char *message);
 
 /**
+ * Invia richiesta della cronologia chat della partita corrente
+ *
+ * @return 0 se successo, -1 se errore
+ */
+int send_get_chat_history_request(void);
+
+/**
  * Invia richiesta per abbandonare la partita corrente
  * 
  * @return 0 se successo, -1 se errore
@@ -213,6 +220,13 @@ void handle_response_make_move(const void *payload);
  * @param payload Puntatore al payload della risposta
  */
 void handle_response_send_message(const void *payload);
+
+/**
+ * Gestisce risposta con cronologia chat della partita
+ *
+ * @param payload Puntatore al payload response_chat_history_t
+ */
+void handle_response_chat_history(const void *payload);
 
 /**
  * Gestisce risposta all'abbandono partita

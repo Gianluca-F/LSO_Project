@@ -42,6 +42,11 @@ typedef struct {
     // Gestione rematch (solo per pareggi)
     int last_result;                    // RESULT_DRAW se pareggio
     int rematch_requested[2];           // 1 se il giocatore [i] ha richiesto rematch
+
+    // Cronologia chat partita (ring buffer)
+    chat_message_entry_t chat_history[MAX_CHAT_HISTORY_MESSAGES];
+    uint8_t chat_count;                 // Numero messaggi validi nel buffer
+    uint8_t chat_start;                 // Indice del messaggio piu' vecchio
 } game_session_t;
 
 /**
@@ -286,6 +291,14 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
  * @param req_seq_id Sequence ID della richiesta (per risposta)
  */
 void handle_send_message(int client_fd, const void *payload, uint16_t length, uint32_t req_seq_id);
+
+/**
+ * Handler per MSG_GET_CHAT_HISTORY - Richiede cronologia chat partita
+ *
+ * @param client_fd File descriptor del giocatore
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
+ */
+void handle_get_chat_history(int client_fd, uint32_t req_seq_id);
 
 /**
  * Handler per MSG_LEAVE_GAME - Abbandona partita

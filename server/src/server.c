@@ -16,6 +16,27 @@
 
 server_state_t server_state;
 
+static void append_chat_message(game_session_t *game, const char *player, const char *message) {
+    if (!game || !player || !message) {
+        return;
+    }
+
+    uint8_t index;
+    if (game->chat_count < MAX_CHAT_HISTORY_MESSAGES) {
+        index = (uint8_t)((game->chat_start + game->chat_count) % MAX_CHAT_HISTORY_MESSAGES);
+        game->chat_count++;
+    } else {
+        index = game->chat_start;
+        game->chat_start = (uint8_t)((game->chat_start + 1) % MAX_CHAT_HISTORY_MESSAGES);
+    }
+
+    strncpy(game->chat_history[index].player, player, MAX_PLAYER_NAME - 1);
+    game->chat_history[index].player[MAX_PLAYER_NAME - 1] = '\0';
+
+    strncpy(game->chat_history[index].message, message, MAX_CHAT_MESSAGE_LEN - 1);
+    game->chat_history[index].message[MAX_CHAT_MESSAGE_LEN - 1] = '\0';
+}
+
 // ============================================================================
 // FUNZIONI PER LA GESTIONE DEL SERVER
 // ============================================================================
@@ -59,6 +80,8 @@ void init_server_state() {
         server_state.games[i].last_result = RESULT_NONE;
         server_state.games[i].rematch_requested[0] = 0;
         server_state.games[i].rematch_requested[1] = 0;
+        server_state.games[i].chat_count = 0;
+        server_state.games[i].chat_start = 0;
     }
     
     server_state.num_clients = 0;
@@ -269,6 +292,10 @@ void *handle_client(void *arg) {
 
             case MSG_SEND_MESSAGE:
                 handle_send_message(client_fd, payload, header.length, header.seq_id);
+                break;
+
+            case MSG_GET_CHAT_HISTORY:
+                handle_get_chat_history(client_fd, header.seq_id);
                 break;
                 
             case MSG_LEAVE_GAME:
@@ -516,6 +543,8 @@ void cleanup_game(game_session_t *game) {
     game->last_result = RESULT_NONE;
     game->rematch_requested[0] = 0;
     game->rematch_requested[1] = 0;
+    game->chat_count = 0;
+    game->chat_start = 0;
     server_state.num_games--;
     
     LOG_INFO("Partita pulita, totale partite rimanenti=%d", server_state.num_games);
@@ -1267,6 +1296,16 @@ void handle_send_message(int client_fd, const void *payload, uint16_t length, ui
     
     const payload_send_message_t *msg_req = (const payload_send_message_t*)payload;
 
+    char sender_name[MAX_PLAYER_NAME];
+    strncpy(sender_name, client->name, MAX_PLAYER_NAME - 1);
+    sender_name[MAX_PLAYER_NAME - 1] = '\0';
+
+    char message_text[MAX_CHAT_MESSAGE_LEN];
+    strncpy(message_text, msg_req->message, MAX_CHAT_MESSAGE_LEN - 1);
+    message_text[MAX_CHAT_MESSAGE_LEN - 1] = '\0';
+
+    append_chat_message(game, sender_name, message_text);
+
     // Invia risposta di successo al mittente
     response.status = STATUS_OK;
     response.error_code = ERR_NONE;
@@ -1278,14 +1317,86 @@ void handle_send_message(int client_fd, const void *payload, uint16_t length, ui
     
     notify_message_sent_t notify_msg;
     notify_msg.notify_type = NOTIFY_MESSAGE_SENT;
-    strncpy(notify_msg.player, client->name, MAX_PLAYER_NAME - 1);
+    strncpy(notify_msg.player, sender_name, MAX_PLAYER_NAME - 1);
     notify_msg.player[MAX_PLAYER_NAME - 1] = '\0';
-    strncpy(notify_msg.message, msg_req->message, MAX_CHAT_MESSAGE_LEN - 1);
-    notify_msg.message[MAX_CHAT_MESSAGE_LEN - 1] = '\0';
 
     protocol_send(opponent_fd, MSG_NOTIFY, &notify_msg, sizeof(notify_msg), 0);
     protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
     LOG_DEBUG("MESSAGE_SENT inviato a FD=%d", opponent_fd);
+}
+
+void handle_get_chat_history(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_get_chat_history chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
+
+    pthread_mutex_lock(&server_state.mutex);
+
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx == -1) {
+        pthread_mutex_unlock(&server_state.mutex);
+        response_chat_history_t error_response;
+        error_response.status = STATUS_ERROR;
+        error_response.error_code = ERR_INTERNAL;
+        error_response.message_count = 0;
+        error_response.reserved = 0;
+        protocol_send(client_fd, MSG_RESPONSE, &error_response, sizeof(error_response), req_seq_id);
+        return;
+    }
+
+    client_info_t *client = &server_state.clients[client_idx];
+    if (client->status != CLIENT_IN_GAME || client->game_index < 0) {
+        pthread_mutex_unlock(&server_state.mutex);
+        response_chat_history_t error_response;
+        error_response.status = STATUS_ERROR;
+        error_response.error_code = ERR_NOT_IN_GAME;
+        error_response.message_count = 0;
+        error_response.reserved = 0;
+        protocol_send(client_fd, MSG_RESPONSE, &error_response, sizeof(error_response), req_seq_id);
+        return;
+    }
+
+    game_session_t *game = &server_state.games[client->game_index];
+    if (!game->active) {
+        pthread_mutex_unlock(&server_state.mutex);
+        response_chat_history_t error_response;
+        error_response.status = STATUS_ERROR;
+        error_response.error_code = ERR_GAME_NOT_FOUND;
+        error_response.message_count = 0;
+        error_response.reserved = 0;
+        protocol_send(client_fd, MSG_RESPONSE, &error_response, sizeof(error_response), req_seq_id);
+        return;
+    }
+
+    uint8_t message_count = game->chat_count;
+    size_t payload_size = sizeof(response_chat_history_t) +
+                          ((size_t)message_count * sizeof(chat_message_entry_t));
+    uint8_t *payload = (uint8_t *)malloc(payload_size);
+    if (!payload) {
+        pthread_mutex_unlock(&server_state.mutex);
+        response_chat_history_t error_response;
+        error_response.status = STATUS_ERROR;
+        error_response.error_code = ERR_INTERNAL;
+        error_response.message_count = 0;
+        error_response.reserved = 0;
+        protocol_send(client_fd, MSG_RESPONSE, &error_response, sizeof(error_response), req_seq_id);
+        return;
+    }
+
+    response_chat_history_t *response = (response_chat_history_t *)payload;
+    response->status = STATUS_OK;
+    response->error_code = ERR_NONE;
+    response->message_count = message_count;
+    response->reserved = 0;
+
+    chat_message_entry_t *messages = (chat_message_entry_t *)(payload + sizeof(response_chat_history_t));
+    for (uint8_t i = 0; i < message_count; i++) {
+        uint8_t ring_idx = (uint8_t)((game->chat_start + i) % MAX_CHAT_HISTORY_MESSAGES);
+        messages[i] = game->chat_history[ring_idx];
+    }
+
+    pthread_mutex_unlock(&server_state.mutex);
+
+    protocol_send(client_fd, MSG_RESPONSE, payload, payload_size, req_seq_id);
+    free(payload);
 }
 
 void handle_leave_game(int client_fd, uint32_t req_seq_id) {

@@ -15,6 +15,7 @@
 #define MAX_PLAYER_NAME 32              // Nome giocatore
 #define MAX_GAME_ID_LEN 16              // ID partita
 #define MAX_CHAT_MESSAGE_LEN 224        // Lunghezza massima messaggio di chat
+#define MAX_CHAT_HISTORY_MESSAGES 128   // Messaggi mantenuti per singola partita
 #define MAX_MESSAGE_SIZE 4096           // Messaggio protocollo
 
 // ============================================================================

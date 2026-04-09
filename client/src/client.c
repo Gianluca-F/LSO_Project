@@ -316,6 +316,29 @@ int send_message_request(char *message) {
     return 0;
 }
 
+int send_get_chat_history_request(void) {
+    if (client_state.socket_fd < 0) {
+        LOG_ERROR("Non connesso al server");
+        return -1;
+    }
+
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.last_request_type = MSG_GET_CHAT_HISTORY;
+    uint32_t seq = client_state.seq_id++;
+    pthread_mutex_unlock(&client_state.mutex);
+
+    int ret = protocol_send(client_state.socket_fd, MSG_GET_CHAT_HISTORY,
+                           NULL, 0, seq);
+
+    if (ret < 0) {
+        LOG_ERROR("Errore invio MSG_GET_CHAT_HISTORY");
+        return -1;
+    }
+
+    LOG_DEBUG("Inviato MSG_GET_CHAT_HISTORY seq=%u", seq);
+    return 0;
+}
+
 int send_leave_game_request(void) {
     if (client_state.socket_fd < 0) {
         LOG_ERROR("Non connesso al server");
@@ -462,6 +485,9 @@ void *notification_thread_func(void *arg) {
                         break;
                     case MSG_SEND_MESSAGE:
                         handle_response_send_message(payload);
+                        break;
+                    case MSG_GET_CHAT_HISTORY:
+                        handle_response_chat_history(payload);
                         break;
                     case MSG_LEAVE_GAME:
                         handle_response_leave_game(payload);
@@ -656,6 +682,27 @@ void handle_response_send_message(const void *payload) {
     (void)payload;  // Non utilizzato per questa risposta
     
     printf("\n✅ Messaggio inviato con successo.");
+    fflush(stdout);
+}
+
+void handle_response_chat_history(const void *payload) {
+    const response_chat_history_t *resp = (const response_chat_history_t *)payload;
+    const chat_message_entry_t *messages = (const chat_message_entry_t *)
+        ((const uint8_t *)payload + sizeof(response_chat_history_t));
+
+    printf("\n----------------------------------------\n");
+    printf("Chat partita\n");
+    printf("----------------------------------------\n");
+
+    if (resp->message_count == 0) {
+        printf("(Nessun messaggio ancora)\n");
+    } else {
+        for (uint8_t i = 0; i < resp->message_count; i++) {
+            printf("%s: %s\n", messages[i].player, messages[i].message);
+        }
+    }
+
+    printf("----------------------------------------\n");
     fflush(stdout);
 }
 
@@ -904,10 +951,9 @@ void handle_move_made_notification(const notify_move_made_t *notify) {
 }
 
 void handle_message_sent_notification(const notify_message_sent_t *notify) {
-    printf("\r \r");
-    printf("\n[MESSAGGIO] %s: %s\n", notify->player, notify->message);
+    printf("[NOTIFICA] Nuovo messaggio da %s. <", notify->player);
     fflush(stdout);
-    LOG_INFO("Messaggio ricevuto da %s: %s", notify->player, notify->message);
+    LOG_INFO("Messaggio ricevuto da %s.", notify->player);
 }
 
 void handle_game_over_notification(const notify_game_end_t *notify) {
@@ -1004,6 +1050,7 @@ void client_run(void) {
     printf("  accept                - Accetta richiesta di join\n");
     printf("  reject                - Rifiuta richiesta di join\n");
     printf("  move <pos>            - Fai una mossa (pos: 1-9)\n");
+    printf("  chat                  - Apri la chat della partita\n");
     printf("  send <msg>            - Invia un messaggio in partita\n");
     printf("  leave                 - Abbandona la partita corrente\n");
     printf("  quit                  - Esci dal client\n");
@@ -1198,6 +1245,20 @@ void client_run(void) {
                 printf("Errore nell'invio del messaggio.\n");
             }
         }
+        // === CHAT ===
+        else if (strcmp(cmd, "chat") == 0) {
+            if (client_state.state != CLIENT_IN_GAME) {
+                printf("❌ Errore: puoi aprire la chat solo durante una partita.\n");
+                printf("\n> ");
+                continue;
+            }
+
+            if (send_get_chat_history_request() == 0) {
+                printf("Richiesta cronologia chat inviata...\n");
+            } else {
+                printf("Errore nell'invio della richiesta cronologia chat.\n");
+            }
+        }
         // === LEAVE ===
         else if (strcmp(cmd, "leave") == 0) {
             if (client_state.state != CLIENT_IN_GAME  && 
@@ -1254,6 +1315,7 @@ void client_run(void) {
             printf("  accept                - Accetta richiesta di join\n");
             printf("  reject                - Rifiuta richiesta di join\n");
             printf("  move <pos>            - Fai una mossa (pos: 1-9)\n");
+            printf("  chat                  - Apri la chat della partita\n");
             printf("  send <msg>            - Invia un messaggio in partita\n");
             printf("  leave                 - Abbandona la partita corrente\n");
             printf("  quit                  - Esci dal client\n");

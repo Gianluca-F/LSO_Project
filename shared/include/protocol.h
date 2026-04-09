@@ -39,6 +39,12 @@ typedef struct __attribute__((packed)) {
     uint8_t players_count;                  // Numero giocatori attuali (0-2)
 } game_info_t;
 
+
+typedef struct __attribute__((packed)) {
+    char player[MAX_PLAYER_NAME];
+    char message[MAX_CHAT_MESSAGE_LEN];
+} chat_message_entry_t;
+
 // ============================================================================
 // TIPI DI MESSAGGIO
 // ============================================================================
@@ -46,16 +52,17 @@ typedef struct __attribute__((packed)) {
 /**
  * Messaggi Client -> Server
  */
-#define MSG_REGISTER        1   
-#define MSG_CREATE_GAME     2   
-#define MSG_LIST_GAMES      3   
-#define MSG_JOIN_GAME       4   
-#define MSG_ACCEPT_JOIN     5   
-#define MSG_MAKE_MOVE       6   
-#define MSG_SEND_MESSAGE    7   
-#define MSG_LEAVE_GAME      8   
-#define MSG_REMATCH         9   
-#define MSG_QUIT            10   
+#define MSG_REGISTER         1   
+#define MSG_CREATE_GAME      2   
+#define MSG_LIST_GAMES       3   
+#define MSG_JOIN_GAME        4   
+#define MSG_ACCEPT_JOIN      5   
+#define MSG_MAKE_MOVE        6   
+#define MSG_SEND_MESSAGE     7 
+#define MSG_GET_CHAT_HISTORY 8  
+#define MSG_LEAVE_GAME       9   
+#define MSG_REMATCH          10   
+#define MSG_QUIT             11
 
 /**
  * Messaggi Server -> Client
@@ -109,6 +116,10 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     char message[MAX_CHAT_MESSAGE_LEN];
 } payload_send_message_t;
+
+/**
+ * MSG_GET_CHAT_HISTORY: Richiede cronologia chat della partita (no payload, solo header)
+ */
 
 /**
  * MSG_LEAVE_GAME: Abbandona partita (no payload, solo header)
@@ -222,6 +233,20 @@ typedef response_generic_t response_make_move_t;
  */
 typedef response_generic_t response_send_message_t;
 
+/**
+ * Risposta a MSG_GET_CHAT_HISTORY
+ *
+ * La dimensione totale del payload e':
+ * sizeof(response_chat_history_t) + (message_count * sizeof(chat_message_entry_t))
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t status;
+    uint8_t error_code;
+    uint8_t message_count;
+    uint8_t reserved;
+    // Seguito da: chat_message_entry_t messages[message_count]
+} response_chat_history_t;
+
 /** 
  * Risposta a MSG_LEAVE_GAME (alias per chiarezza)
  */
@@ -324,7 +349,6 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
     uint8_t notify_type;
     char player[MAX_PLAYER_NAME];
-    char message[MAX_CHAT_MESSAGE_LEN];
 } notify_message_sent_t;
 
 /**
