@@ -339,6 +339,29 @@ int send_get_chat_history_request(void) {
     return 0;
 }
 
+int send_get_stats_request(void) {
+    if (client_state.socket_fd < 0) {
+        LOG_ERROR("Non connesso al server");
+        return -1;
+    }
+
+    pthread_mutex_lock(&client_state.mutex);
+    client_state.last_request_type = MSG_GET_STATS;
+    uint32_t seq = client_state.seq_id++;
+    pthread_mutex_unlock(&client_state.mutex);
+
+    int ret = protocol_send(client_state.socket_fd, MSG_GET_STATS,
+                           NULL, 0, seq);
+
+    if (ret < 0) {
+        LOG_ERROR("Errore invio MSG_GET_STATS");
+        return -1;
+    }
+
+    LOG_DEBUG("Inviato MSG_GET_STATS seq=%u", seq);
+    return 0;
+}
+
 int send_leave_game_request(void) {
     if (client_state.socket_fd < 0) {
         LOG_ERROR("Non connesso al server");
@@ -488,6 +511,9 @@ void *notification_thread_func(void *arg) {
                         break;
                     case MSG_GET_CHAT_HISTORY:
                         handle_response_chat_history(payload);
+                        break;
+                    case MSG_GET_STATS:
+                        handle_response_get_stats(payload);
                         break;
                     case MSG_LEAVE_GAME:
                         handle_response_leave_game(payload);
@@ -702,6 +728,21 @@ void handle_response_chat_history(const void *payload) {
         }
     }
 
+    printf("----------------------------------------\n");
+    fflush(stdout);
+}
+
+void handle_response_get_stats(const void *payload) {
+    const response_get_stats_t *resp = (const response_get_stats_t *)payload;
+    uint32_t total_games = resp->wins + resp->losses + resp->draws;
+    
+    printf("\n----------------------------------------\n");
+    printf("Statistiche di gioco\n");
+    printf("----------------------------------------\n");
+    printf("Partite giocate: %d\n", total_games);
+    printf("Partite vinte: %d (%.2f%%)\n", resp->wins, total_games > 0 ? (float)resp->wins / total_games * 100 : 0);
+    printf("Partite perse: %d (%.2f%%)\n", resp->losses, total_games > 0 ? (float)resp->losses / total_games * 100 : 0);
+    printf("Partite pareggiate: %d (%.2f%%)\n", resp->draws, total_games > 0 ? (float)resp->draws / total_games * 100 : 0);
     printf("----------------------------------------\n");
     fflush(stdout);
 }
@@ -1052,6 +1093,7 @@ void client_run(void) {
     printf("  move <pos>            - Fai una mossa (pos: 1-9)\n");
     printf("  chat                  - Apri la chat della partita\n");
     printf("  send <msg>            - Invia un messaggio in partita\n");
+    printf("  stats                 - Mostra statistiche del giocatore\n");
     printf("  leave                 - Abbandona la partita corrente\n");
     printf("  quit                  - Esci dal client\n");
     printf("  help                  - Mostra questo menu\n");
@@ -1257,6 +1299,20 @@ void client_run(void) {
                 printf("Richiesta cronologia chat inviata...\n");
             } else {
                 printf("Errore nell'invio della richiesta cronologia chat.\n");
+            }
+        }
+        // === STATS ===
+        else if (strcmp(cmd, "stats") == 0) {
+            if (client_state.state == CLIENT_CONNECTED) {
+                printf("❌ Errore: devi essere registrato per vedere le statistiche.\n");
+                printf("\n> ");
+                continue;
+            }
+
+            if (send_get_stats_request() == 0) {
+                printf("Richiesta statistiche inviata...\n");
+            } else {
+                printf("Errore nell'invio della richiesta statistiche.\n");
             }
         }
         // === LEAVE ===

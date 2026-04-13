@@ -16,27 +16,6 @@
 
 server_state_t server_state;
 
-static void append_chat_message(game_session_t *game, const char *player, const char *message) {
-    if (!game || !player || !message) {
-        return;
-    }
-
-    uint8_t index;
-    if (game->chat_count < MAX_CHAT_HISTORY_MESSAGES) {
-        index = (uint8_t)((game->chat_start + game->chat_count) % MAX_CHAT_HISTORY_MESSAGES);
-        game->chat_count++;
-    } else {
-        index = game->chat_start;
-        game->chat_start = (uint8_t)((game->chat_start + 1) % MAX_CHAT_HISTORY_MESSAGES);
-    }
-
-    strncpy(game->chat_history[index].player, player, MAX_PLAYER_NAME - 1);
-    game->chat_history[index].player[MAX_PLAYER_NAME - 1] = '\0';
-
-    strncpy(game->chat_history[index].message, message, MAX_CHAT_MESSAGE_LEN - 1);
-    game->chat_history[index].message[MAX_CHAT_MESSAGE_LEN - 1] = '\0';
-}
-
 // ============================================================================
 // FUNZIONI PER LA GESTIONE DEL SERVER
 // ============================================================================
@@ -297,6 +276,10 @@ void *handle_client(void *arg) {
             case MSG_GET_CHAT_HISTORY:
                 handle_get_chat_history(client_fd, header.seq_id);
                 break;
+
+            case MSG_GET_STATS:
+                handle_get_stats(client_fd, header.seq_id);
+                break;
                 
             case MSG_LEAVE_GAME:
                 handle_leave_game(client_fd, header.seq_id);
@@ -415,6 +398,9 @@ int add_client(int fd) {
     server_state.clients[slot].status = CLIENT_CONNECTED;
     server_state.clients[slot].game_index = -1;
     server_state.clients[slot].player_index = -1;
+    server_state.clients[slot].stats.wins = 0;
+    server_state.clients[slot].stats.losses = 0;
+    server_state.clients[slot].stats.draws = 0;
     server_state.clients[slot].seq_id = 0;
     
     server_state.num_clients++;
@@ -1200,15 +1186,23 @@ void handle_make_move(int client_fd, const void *payload, uint16_t length, uint3
             notify_game_end_t notify;
             notify.notify_type = NOTIFY_GAME_END;
             memcpy(notify.board, board_str, BOARD_SIZE);
-            
+
+            pthread_mutex_lock(&server_state.mutex);
+            int client_idx = find_client_by_fd(player_fds[i]);
+
             // Determina risultato per questo giocatore
             if (winner == 2) {
                 notify.result = RESULT_DRAW;
+                server_state.clients[client_idx].stats.draws++;
             } else if (winner == i) {
                 notify.result = RESULT_WIN;
+                server_state.clients[client_idx].stats.wins++;
             } else {
                 notify.result = RESULT_LOSE;
+                server_state.clients[client_idx].stats.losses++;
             }
+
+            pthread_mutex_unlock(&server_state.mutex);
             
             protocol_send(player_fds[i], MSG_NOTIFY, &notify, sizeof(notify), 0);
             LOG_DEBUG("GAME_END inviato a FD=%d, result=%d", player_fds[i], notify.result);
@@ -1397,6 +1391,50 @@ void handle_get_chat_history(int client_fd, uint32_t req_seq_id) {
 
     protocol_send(client_fd, MSG_RESPONSE, payload, payload_size, req_seq_id);
     free(payload);
+}
+
+void handle_get_stats(int client_fd, uint32_t req_seq_id) {
+    LOG_DEBUG("handle_get_stats chiamato per FD=%d, req_seq=%u", client_fd, req_seq_id);
+    
+    response_get_stats_t response;
+    response.status = STATUS_ERROR;
+    response.error_code = ERR_INTERNAL;
+    response.wins = 0;
+    response.losses = 0;
+    response.draws = 0;
+    
+    pthread_mutex_lock(&server_state.mutex);
+    
+    // Trova client
+    int client_idx = find_client_by_fd(client_fd);
+    if (client_idx == -1) {
+        LOG_WARN("Client FD=%d non trovato", client_fd);
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+
+    client_info_t *client = &server_state.clients[client_idx];
+
+    // Non deve essere in partita
+    if (client->status == CLIENT_IN_GAME) {
+        LOG_WARN("Client FD=%d in partita", client_fd);
+        response.error_code = ERR_ALREADY_IN_GAME;
+        pthread_mutex_unlock(&server_state.mutex);
+        protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
+        return;
+    }
+    
+    // Prepara risposta di successo
+    response.status = STATUS_OK;
+    response.error_code = ERR_NONE;
+    response.wins = client->stats.wins;
+    response.losses = client->stats.losses;
+    response.draws = client->stats.draws;
+    
+    pthread_mutex_unlock(&server_state.mutex);
+    
+    protocol_send(client_fd, MSG_RESPONSE, &response, sizeof(response), req_seq_id);
 }
 
 void handle_leave_game(int client_fd, uint32_t req_seq_id) {
@@ -1715,6 +1753,16 @@ cleanup_notify_data_t cleanup_client_from_game_state(int client_fd) {
         // Trova l'avversario prima del cleanup
         int opponent_idx = 1 - client->player_index;
         int opponent_fd = game->player_fds[opponent_idx];
+
+        // Aggiornamento statistiche
+        // Il client che abbandona subisce una sconfitta
+        client->stats.losses++;
+
+        // L'avversario riceve una vittoria a tavolino
+        int opp_client_idx = find_client_by_fd(opponent_fd);
+        if (opp_client_idx != -1) {
+            server_state.clients[opp_client_idx].stats.wins++;
+        }
         
         cleanup_game(game); // Mutex già acquisito
         
@@ -1756,6 +1804,27 @@ void send_notify_after_cleanup_client(cleanup_notify_data_t notify_data) {
         protocol_send(notify_data.target_fd, MSG_NOTIFY, &notify, sizeof(notify), 0);
         LOG_INFO("JOIN_CANCELLATION (by creator) inviato a FD=%d (client disconnesso)", notify_data.target_fd);
     }
+}
+
+void append_chat_message(game_session_t *game, const char *player, const char *message) {
+    if (!game || !player || !message) {
+        return;
+    }
+
+    uint8_t index;
+    if (game->chat_count < MAX_CHAT_HISTORY_MESSAGES) {
+        index = (uint8_t)((game->chat_start + game->chat_count) % MAX_CHAT_HISTORY_MESSAGES);
+        game->chat_count++;
+    } else {
+        index = game->chat_start;
+        game->chat_start = (uint8_t)((game->chat_start + 1) % MAX_CHAT_HISTORY_MESSAGES);
+    }
+
+    strncpy(game->chat_history[index].player, player, MAX_PLAYER_NAME - 1);
+    game->chat_history[index].player[MAX_PLAYER_NAME - 1] = '\0';
+
+    strncpy(game->chat_history[index].message, message, MAX_CHAT_MESSAGE_LEN - 1);
+    game->chat_history[index].message[MAX_CHAT_MESSAGE_LEN - 1] = '\0';
 }
 
 // ============================================================================

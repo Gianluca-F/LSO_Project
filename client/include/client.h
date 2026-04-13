@@ -132,6 +132,13 @@ int send_message_request(char *message);
 int send_get_chat_history_request(void);
 
 /**
+ * Invia richiesta per ottenere le statistiche del giocatore
+ *
+ * @return 0 se successo, -1 se errore
+ */
+int send_get_stats_request(void);
+
+/**
  * Invia richiesta per abbandonare la partita corrente
  * 
  * @return 0 se successo, -1 se errore
@@ -227,6 +234,13 @@ void handle_response_send_message(const void *payload);
  * @param payload Puntatore al payload response_chat_history_t
  */
 void handle_response_chat_history(const void *payload);
+
+/**
+ * Gestisce risposta con le statistiche del giocatore
+ *
+ * @param payload Puntatore al payload response_get_stats_t
+ */
+void handle_response_get_stats(const void *payload);
 
 /**
  * Gestisce risposta all'abbandono partita

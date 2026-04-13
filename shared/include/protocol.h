@@ -60,9 +60,10 @@ typedef struct __attribute__((packed)) {
 #define MSG_MAKE_MOVE        6   
 #define MSG_SEND_MESSAGE     7 
 #define MSG_GET_CHAT_HISTORY 8  
-#define MSG_LEAVE_GAME       9   
-#define MSG_REMATCH          10   
-#define MSG_QUIT             11
+#define MSG_GET_STATS        9
+#define MSG_LEAVE_GAME       10
+#define MSG_REMATCH          11   
+#define MSG_QUIT             12
 
 /**
  * Messaggi Server -> Client
@@ -119,6 +120,10 @@ typedef struct __attribute__((packed)) {
 
 /**
  * MSG_GET_CHAT_HISTORY: Richiede cronologia chat della partita (no payload, solo header)
+ */
+
+/**
+ * MSG_GET_STATS: Richiede statistiche giocatore (no payload, solo header)
  */
 
 /**
@@ -246,6 +251,17 @@ typedef struct __attribute__((packed)) {
     uint8_t reserved;
     // Seguito da: chat_message_entry_t messages[message_count]
 } response_chat_history_t;
+
+/** 
+ * Risposta a MSG_GET_STATS
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t status;
+    uint8_t error_code;
+    uint32_t wins;
+    uint32_t losses;
+    uint32_t draws;
+} response_get_stats_t;
 
 /** 
  * Risposta a MSG_LEAVE_GAME (alias per chiarezza)

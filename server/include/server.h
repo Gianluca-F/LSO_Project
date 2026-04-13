@@ -16,6 +16,15 @@
 // ============================================================================
 
 /**
+ * Statistiche di gioco per ogni giocatore
+ */
+typedef struct { 
+    uint32_t wins;
+    uint32_t losses;
+    uint32_t draws;
+} player_stats_t;
+
+/**
  * Informazioni su ogni client connesso
  */
 typedef struct {
@@ -24,6 +33,7 @@ typedef struct {
     client_status_t status;             // Stato corrente del client
     int game_index;                     // Indice in games[] (-1 se non in partita)
     int player_index;                   // 0 o 1 nella partita (quale giocatore è)
+    player_stats_t stats;               // Statistiche di gioco
     uint32_t seq_id;                    // Sequence ID per notifiche spontanee del server
 } client_info_t;
 
@@ -301,6 +311,14 @@ void handle_send_message(int client_fd, const void *payload, uint16_t length, ui
 void handle_get_chat_history(int client_fd, uint32_t req_seq_id);
 
 /**
+ * Handler per MSG_GET_STATS - Richiede statistiche giocatore
+ *
+ * @param client_fd File descriptor del giocatore
+ * @param req_seq_id Sequence ID della richiesta (per risposta)
+ */
+void handle_get_stats(int client_fd, uint32_t req_seq_id);
+
+/**
  * Handler per MSG_LEAVE_GAME - Abbandona partita
  * 
  * @param client_fd File descriptor del giocatore che abbandona
@@ -402,6 +420,17 @@ cleanup_notify_data_t cleanup_client_from_game_state(int client_fd);
  * @param notify_data Struttura con dati di notifica
  */
 void send_notify_after_cleanup_client(cleanup_notify_data_t notify_data);
+
+/**
+ * Aggiunge un messaggio alla cronologia della chat di una partita
+ * 
+ * Usa un ring buffer per mantenere solo gli ultimi MAX_CHAT_HISTORY_MESSAGES
+ * 
+ * @param game Puntatore alla sessione di gioco
+ * @param player Nome del giocatore
+ * @param message Messaggio da aggiungere
+ */
+void append_chat_message(game_session_t *game, const char *player, const char *message);
 
 // ============================================================================
 // FUNZIONI DI NOTIFICA
