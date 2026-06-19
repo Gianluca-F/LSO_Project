@@ -40,3 +40,11 @@ La traccia identifica esplicitamente numerosi stati per le partite: *"terminata,
 *   **Scelta progettuale per l'identificazione della partita:** la traccia richiede "partite identificate in modo univoco". È stata implementata un'assegnazione di ID progressivo, anch'essa protetta da mutex durante la generazione (nella fase di "nuova creazione").
 *   **Scambio messaggi e broadcast:** la problematica di generare messaggi diversi è stata risolta definendo due macro-categorie di messaggistica: *Punto-Punto* (tra thread server e socket client specifico) e *Broadcast*. 
 Per implementare la notifica di "invito globale", il server deve attraversare la lista di tutti i giocatori registrati e liberi (altro motivo per cui è fondamentale un mutex sulla lista degli utenti) e inviare il messaggio sul loro socket per annunciare che è disponibile una partita "in attesa".
+
+## 4. Utilizzo di Docker e containerizzazione
+
+Per semplificare l'esecuzione, il testing e il deployment dell'applicazione, il progetto integra il supporto a **Docker** tramite i file `Dockerfile.client`, `Dockerfile.server` e `docker-compose.yml`. 
+
+Le principali utilità e motivazioni dietro questa scelta includono:
+* **Isolamento dell'ambiente e consistenza:** i container garantiscono che client e server vengano eseguiti in un ambiente isolato, contenente le esatte dipendenze richieste (es. il compilatore C). Questo elimina il classico problema legato alle differenze tra le varie configurazioni delle macchine host.
+* **Orchestrazione semplificata tramite compose:** utilizzando `docker-compose`, è possibile predisporre e avviare l'infrastruttura (un'istanza server e una o più istanze client per i test) lanciando un unico comando da terminale.
