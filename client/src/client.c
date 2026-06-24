@@ -992,7 +992,7 @@ void handle_move_made_notification(const notify_move_made_t *notify) {
 }
 
 void handle_message_sent_notification(const notify_message_sent_t *notify) {
-    printf("[NOTIFICA] Nuovo messaggio da %s. <", notify->player);
+    printf("[NOTIFICA] Nuovo messaggio da %s. Scrivi 'chat' per visualizzare <", notify->player);
     fflush(stdout);
     LOG_INFO("Messaggio ricevuto da %s.", notify->player);
 }
