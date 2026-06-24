@@ -1373,6 +1373,7 @@ void client_run(void) {
             printf("  move <pos>            - Fai una mossa (pos: 1-9)\n");
             printf("  chat                  - Apri la chat della partita\n");
             printf("  send <msg>            - Invia un messaggio in partita\n");
+            printf("  stats                 - Mostra statistiche del giocatore\n");
             printf("  leave                 - Abbandona la partita corrente\n");
             printf("  quit                  - Esci dal client\n");
             printf("  help                  - Mostra questo menu\n");
