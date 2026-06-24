@@ -1130,7 +1130,12 @@ void client_run(void) {
         }
 
         printf("\n");
-        
+
+        client_status_t client_status;
+        pthread_mutex_lock(&client_state.mutex);
+        client_status = client_state.state;
+        pthread_mutex_unlock(&client_state.mutex);
+
         // === REGISTER ===
         if (strcmp(cmd, "register") == 0) {
             if (parsed < 2) {
@@ -1139,7 +1144,7 @@ void client_run(void) {
                 continue;
             }
             
-            if (client_state.state != CLIENT_CONNECTED) {
+            if (client_status != CLIENT_CONNECTED) {
                 printf("❌ Errore: sei già registrato.\n");
                 printf("\n> ");
                 continue;
@@ -1160,7 +1165,7 @@ void client_run(void) {
         }
         // === CREATE ===
         else if (strcmp(cmd, "create") == 0) {
-            if (client_state.state != CLIENT_REGISTERED) {
+            if (client_status != CLIENT_REGISTERED) {
                 printf("❌ Errore: devi essere registrato e non in partita.\n"
                        "   Puoi creare solo una partita alla volta.\n");
                 printf("\n> ");
@@ -1175,8 +1180,8 @@ void client_run(void) {
         }
         // === LIST ===
         else if (strcmp(cmd, "list") == 0) {
-            if (client_state.state != CLIENT_REGISTERED &&
-                client_state.state != CLIENT_REQUESTING_JOIN) {
+            if (client_status != CLIENT_REGISTERED &&
+                client_status != CLIENT_REQUESTING_JOIN) {
                 printf("❌ Errore: per richiedere la lista, devi essere\n"
                        "   registrato e non già in lobby o in partita.\n");
                 printf("\n> ");
@@ -1197,7 +1202,7 @@ void client_run(void) {
                 continue;
             }
             
-            if (client_state.state != CLIENT_REGISTERED) {
+            if (client_status != CLIENT_REGISTERED) {
                 printf("❌ Errore: per unirti a una partita, devi essere\n"
                        "   registrato e non già in lobby o in partita.\n");
                 printf("\n> ");
@@ -1212,7 +1217,7 @@ void client_run(void) {
         }
         // === ACCEPT ===
         else if (strcmp(cmd, "accept") == 0) {
-            if (client_state.state != CLIENT_IN_LOBBY) {
+            if (client_status != CLIENT_IN_LOBBY) {
                 printf("❌ Errore: devi essere in lobby per accettare\n"
                        "   una richiesta di join.\n");
                 printf("\n> ");
@@ -1227,7 +1232,7 @@ void client_run(void) {
         }
         // === REJECT ===
         else if (strcmp(cmd, "reject") == 0) {
-            if (client_state.state != CLIENT_IN_LOBBY) {
+            if (client_status != CLIENT_IN_LOBBY) {
                 printf("❌ Errore: devi essere in lobby per rifiutare\n"
                        "   una richiesta di join.\n");
                 printf("\n> ");
@@ -1248,7 +1253,7 @@ void client_run(void) {
                 continue;
             }
             
-            if (client_state.state != CLIENT_IN_GAME) {
+            if (client_status != CLIENT_IN_GAME) {
                 printf("❌ Errore: non sei in una partita.\n");
                 printf("\n> ");
                 continue;
@@ -1275,7 +1280,7 @@ void client_run(void) {
                 continue;
             }
             
-            if (client_state.state != CLIENT_IN_GAME) {
+            if (client_status != CLIENT_IN_GAME) {
                 printf("❌ Errore: puoi inviare messaggi solo durante una partita.\n");
                 printf("\n> ");
                 continue;
@@ -1289,7 +1294,7 @@ void client_run(void) {
         }
         // === CHAT ===
         else if (strcmp(cmd, "chat") == 0) {
-            if (client_state.state != CLIENT_IN_GAME) {
+            if (client_status != CLIENT_IN_GAME) {
                 printf("❌ Errore: puoi aprire la chat solo durante una partita.\n");
                 printf("\n> ");
                 continue;
@@ -1303,7 +1308,7 @@ void client_run(void) {
         }
         // === STATS ===
         else if (strcmp(cmd, "stats") == 0) {
-            if (client_state.state == CLIENT_CONNECTED) {
+            if (client_status != CLIENT_REGISTERED) {
                 printf("❌ Errore: devi essere registrato per vedere le statistiche.\n");
                 printf("\n> ");
                 continue;
@@ -1317,9 +1322,9 @@ void client_run(void) {
         }
         // === LEAVE ===
         else if (strcmp(cmd, "leave") == 0) {
-            if (client_state.state != CLIENT_IN_GAME  && 
-                client_state.state != CLIENT_IN_LOBBY &&
-                client_state.state != CLIENT_REQUESTING_JOIN) {
+            if (client_status != CLIENT_IN_GAME  && 
+                client_status != CLIENT_IN_LOBBY &&
+                client_status != CLIENT_REQUESTING_JOIN) {
                 printf("❌ Errore: non sei in una partita.\n");
                 printf("\n> ");
                 continue;
@@ -1333,7 +1338,7 @@ void client_run(void) {
         }
         // === REMATCH ===
         else if (strcmp(cmd, "rematch") == 0) {
-            if (client_state.state != CLIENT_REGISTERED) {
+            if (client_status != CLIENT_REGISTERED) {
                 printf("❌ Errore: puoi richiedere un rematch solo dopo\n"
                        "   che una partita è terminata.\n");
                 printf("\n> ");
