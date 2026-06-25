@@ -11,7 +11,7 @@ Con questa soluzione, il server genera un nuovo thread per ogni nuovo client con
 *   **Pro:**
     *   Modello di programmazione lineare e intuitivo: ogni thread gestisce il proprio ciclo di vita (lettura/scrittura sul socket) in modo isolato, bloccandosi su istruzioni sincrone senza penalizzare gli altri giocatori.
     *   Pieno supporto al parallelismo e all'utilizzo delle CPU moderne multi-core.
-    *   Isolamento (fino a un certo punto) degli errori a livello di singola partita.
+    *   Isolamento degli errori a livello di singola partita.
 *   **Contro:**
     *   Consumo di risorse (memoria per lo stack di ogni thread).
     *   **Problemi di concorrenza reali:** varie entità devono essere accessibili in lettura e scrittura da più thread simultaneamente. Senza controlli, modifiche simultanee causano stati inconsistenti.
